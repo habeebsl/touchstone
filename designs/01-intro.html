@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Undertone - Intro</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;700&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        background: '#F7F4EF',
+                        surface: '#FFFFFF',
+                        foreground: '#1C1917',
+                        muted: '#6B6259',
+                        border: '#E7E1D8',
+                        primary: '#2A2320',
+                        onprimary: '#FAF8F5',
+                        destructive: '#B91C1C'
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.125rem",
+                        lg: "0.25rem",
+                        xl: "0.5rem",
+                        full: "0.75rem"
+                    },
+                    fontFamily: {
+                        headline: ["Playfair Display", "serif"],
+                        display: ["Playfair Display", "serif"],
+                        body: ["Inter", "sans-serif"],
+                        label: ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        /* Base styles mapping to typography spec */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F7F4EF;
+            color: #1C1917;
+            -webkit-font-smoothing: antialiased;
+        }
+        h1, h2, h3, .font-headline {
+            font-family: 'Playfair Display', serif;
+        }
+        
+        /* Mobile target constraint styling */
+        .mobile-container {
+            max-width: 375px;
+            margin: 0 auto;
+            min-height: 100vh;
+            min-height: 100dvh;
+            position: relative;
+            background-color: #F7F4EF; /* Ensuring background covers container */
+            box-shadow: 0 0 20px rgba(0,0,0,0.05); /* Subtle shadow just to delineate on wider screens */
+        }
+
+        /* Motion spec: 150-300ms ease-out */
+        .transition-interactive {
+            transition: all 250ms cubic-bezier(0.0, 0.0, 0.2, 1);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+<!-- Mobile Container (375px) -->
+<main class="mobile-container w-full flex flex-col justify-between px-8 py-12">
+<!-- Top Spacer (if needed later, keeping layout flex-between balanced) -->
+<div class="h-12 w-full"></div>
+<!-- Typography Hero Content -->
+<div class="flex flex-col gap-6 text-center mt-12 mb-auto">
+<h1 class="font-headline text-[2.25rem] leading-[1.1] font-medium text-foreground tracking-tight text-balance">
+                A mirror that already knows what works on you.
+            </h1>
+<p class="font-body text-base leading-relaxed font-light text-muted px-2">
+                Our technology measures your unique skin, hair, and eye tones to find your perfect match.
+            </p>
+</div>
+<!-- Action Button -->
+<div class="w-full pb-8 pt-12">
+<button class="w-full bg-primary text-onprimary font-label text-base font-medium py-4 px-6 rounded-lg flex items-center justify-center transition-interactive hover:bg-black active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background">
+                Take a selfie
+            </button>
+</div>
+</main>
+</body></html>

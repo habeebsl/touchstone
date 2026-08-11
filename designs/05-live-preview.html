@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Undertone - Live Preview</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&amp;family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400&amp;family=Public+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        background: '#F7F4EF',
+                        surface: '#FFFFFF',
+                        foreground: '#1C1917',
+                        muted: '#6B6259',
+                        border: '#E7E1D8',
+                        primary: '#2A2320',
+                        'on-primary': '#FAF8F5',
+                        destructive: '#B91C1C',
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.125rem",
+                        lg: "0.25rem",
+                        xl: "0.5rem",
+                        full: "0.75rem"
+                    },
+                    fontFamily: {
+                        headline: ["Playfair Display", "serif"],
+                        display: ["Playfair Display", "serif"],
+                        body: ["Inter", "sans-serif"],
+                        label: ["Inter", "sans-serif"],
+                        mono: ["Inter", "monospace"]
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            background-color: #000; /* Behind the camera feed */
+            overscroll-behavior-y: none;
+        }
+    </style>
+</head>
+<body class="font-body text-foreground antialiased h-screen w-screen overflow-hidden relative selection:bg-primary selection:text-on-primary">
+<!-- The Live Camera Feed / Main Portrait -->
+<div class="absolute inset-0 z-0">
+<img alt="Live preview of user with lip and blush makeup applied" class="w-full h-full object-cover object-center" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAbtFRxKw_-aLbAI6vc3TfQnQc01IU1ViIg54G8bKKMH0LUudPw98tphXGHEG_cUpLfNqg9FkXFQWVrgN6ynOtV5JwrKq5zjjeiwafDurCD3NZaBr1jbwKi8t5b-2v7Yx7Vmvk65BsPDknWx1d06iL55UOm7HpI4X1PQq05VbCbUmIa-YNv3YbJ1ETvIb9ng4fA1y7Ip4SHfu4S2EDacIl2e3vCeC2_R9JLKdSsPj5Huxp4YpXjgkj8VTAMkUGBqP8tKiOAyQErgaFW"/>
+</div>
+<!-- UI Overlay Layer -->
+<div class="absolute inset-0 z-10 flex flex-col justify-between pointer-events-none">
+<!-- Top App Bar (Stripped Down to Back Arrow) -->
+<header class="flex items-center justify-start h-16 px-6 w-full max-w-screen-md mx-auto pointer-events-auto">
+<button aria-label="Go back" class="w-10 h-10 flex items-center justify-center rounded-full bg-surface/80 backdrop-blur-md border border-border/50 text-foreground shadow-sm hover:opacity-80 transition-opacity duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">arrow_back</span>
+</button>
+</header>
+<!-- Bottom UI Panel -->
+<div class="w-full max-w-screen-md mx-auto px-6 pb-8 pt-12 bg-gradient-to-t from-background via-background/90 to-transparent pointer-events-auto">
+<div class="flex items-end justify-between gap-6">
+<!-- Active Look & Swatches -->
+<div class="flex-1">
+<h1 class="font-headline font-medium text-4xl text-foreground mb-4 tracking-tight">Polished</h1>
+<div class="flex items-center gap-6 mb-3">
+<div class="flex items-center gap-2">
+<div aria-hidden="true" class="w-6 h-6 rounded-full border border-border/50 shadow-sm" style="background-color: #A8404E;"></div>
+<span class="font-label text-xs uppercase tracking-widest text-muted tabular-nums">#A8404E</span>
+</div>
+<div class="flex items-center gap-2">
+<div aria-hidden="true" class="w-6 h-6 rounded-full border border-border/50 shadow-sm" style="background-color: #C98A80;"></div>
+<span class="font-label text-xs uppercase tracking-widest text-muted tabular-nums">#C98A80</span>
+</div>
+</div>
+<p class="font-body text-sm text-muted">Live preview shows lip and blush</p>
+</div>
+<!-- Reference Thumbnail -->
+<div class="flex flex-col items-center gap-2">
+<div class="relative w-20 h-28 rounded-lg overflow-hidden border border-border bg-surface shadow-sm cursor-pointer hover:opacity-90 transition-opacity duration-150 group">
+<div class="w-full h-full bg-cover bg-center" data-alt="A small thumbnail portrait showing the full 'Polished' makeup look, including eye makeup, styled in a warm, neutral, editorial aesthetic. High-quality digital rendering, softly lit." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuC-QzTakI12i5WKnPJg28N2J3R7gHclr_orQE9zLU_mV6vXOaVd1j6Wxe49JyCeVYMVkLQH0eUYEhLtTzP3ZwtfZPvVdVab6oVtsDL1rJNMvuBApAc46AUcYp8ZXCYSAkWUz0fMPr6gnl3V72glJl6Q_XfEyqVe1v0_UC2i2X-l-cv0_x3c35hVKARH0MtWpf4xiydVLJOLu7H7kkhtbgwe9JNUH1TXX8CCoji4K9MCqFvMX3NU_2FmrikrHbJ7wZ4oTDNeQ7cdfT6G')"></div>
+</div>
+<span class="font-label text-xs text-muted uppercase tracking-wider">Full look</span>
+</div>
+</div>
+</div>
+</div>
+</body></html>

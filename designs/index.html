@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Undertone — Screens</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  body { margin:0; background:#F7F4EF; color:#1C1917; font-family:Inter,sans-serif; padding:32px; }
+  h1 { font-family:'Playfair Display',serif; font-weight:500; font-size:32px; margin:0 0 4px; }
+  p.sub { color:#6B6259; margin:0 0 32px; font-weight:300; }
+  .grid { display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start; }
+  figure { margin:0; }
+  figcaption { font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:#6B6259; margin-bottom:8px; }
+  iframe { width:375px; height:760px; border:1px solid #E7E1D8; border-radius:8px; background:#fff; }
+  .note { border-left:2px solid #E7E1D8; padding-left:16px; margin:32px 0; color:#6B6259; font-weight:300; max-width:60ch; font-size:14px; line-height:1.6; }
+</style>
+</head>
+<body>
+<h1>Undertone — screens</h1>
+<p class="sub">Four of five states. Capture is owned by the YouCam Camera Kit SDK and is not ours to design.</p>
+
+<div class="note">
+Numbering matches the flow: 1 intro → <em>2 capture (SDK)</em> → 3 analysing → 4 looks → 5 live preview.
+Generated with Google Stitch against the design system in <code>docs/DESIGN.md</code>.
+</div>
+
+<div class="grid">
+  <figure><figcaption>1 — Intro</figcaption><iframe src="01-intro.html"></iframe></figure>
+  <figure><figcaption>3 — Analysing</figcaption><iframe src="03-analysing.html"></iframe></figure>
+  <figure><figcaption>4 — Your looks</figcaption><iframe src="04-looks.html"></iframe></figure>
+  <figure><figcaption>5 — Live preview</figcaption><iframe src="05-live-preview.html"></iframe></figure>
+</div>
+</body>
+</html>

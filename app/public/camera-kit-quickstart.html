@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Camera Kit quickstart — spike 4</title>
+  <style>
+    body { font-family: system-ui; background: #111; color: #eee; padding: 16px; padding-bottom: 40vh; }
+    #YMK-module { min-width: 480px; min-height: 480px; background: #222; margin-top: 12px; }
+    input { width: 420px; max-width: 60vw; }
+    label { display: block; margin: 6px 0; }
+    button { margin-top: 8px; padding: 6px 14px; }
+    /* Camera Kit opens as a fullscreen overlay, so the log has to float on top of it (not just
+       sit below in normal flow) to stay visible on a phone while the camera UI is open. */
+    #log {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      max-height: 35vh;
+      margin: 0;
+      background: rgba(0, 0, 0, 0.92);
+      color: #0f0;
+      font-size: 12px;
+      padding: 8px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      z-index: 999999;
+      border-top: 2px solid #0f0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Spike 4 — Camera Kit raw-HTML baseline</h1>
+  <p style="opacity:.7; max-width:600px">
+    Prebuild-validation.md item 4, step 1: run the quickstart unmodified in a blank HTML file
+    before wiring it into React. Paste your API key (and secret key, if the SDK needs it —
+    unconfirmed, see docs/youcam-api-notes.md) below and click Init, then Open Camera Kit.
+    Nothing here is sent anywhere except to the SDK itself; keys are not persisted.
+  </p>
+
+  <label>API Key <input id="apiKey" type="password" /></label>
+  <label>Secret Key (try empty first) <input id="secretKey" type="password" /></label>
+  <button id="initBtn">1. Init</button>
+  <button id="openBtn" disabled>2. Open Camera Kit</button>
+
+  <div id="YMK-module"></div>
+  <div id="captured-results"></div>
+
+  <pre id="log">Log (floats over camera when open) —
+</pre>
+
+  <script src="https://plugins-media.makeupar.com/v2.5-camera-kit/sdk.js"></script>
+  <script>
+    const logEl = document.getElementById("log");
+
+    function truncate(str, max = 200) {
+      if (str.length <= max) return str;
+      return `${str.slice(0, max)}… (${str.length} chars total)`;
+    }
+
+    // Safe describe: never throws, never dumps a raw Blob/base64 payload wholesale
+    // (would blow out a small on-page log box on a phone).
+    function describe(value, depth = 0) {
+      if (value == null) return String(value);
+      if (typeof value === "string") return truncate(value);
+      if (typeof value !== "object") return String(value);
+      if (value instanceof Blob) return `Blob { type: "${value.type}", size: ${value.size} bytes }`;
+      if (value instanceof ArrayBuffer) return `ArrayBuffer { byteLength: ${value.byteLength} }`;
+      if (value instanceof HTMLElement) return `<${value.tagName.toLowerCase()}>`;
+      if (depth > 2) return "{...}";
+      try {
+        const out = {};
+        for (const k of Object.keys(value)) {
+          out[k] = describe(value[k], depth + 1);
+        }
+        return JSON.stringify(out, null, 2);
+      } catch (e) {
+        return `[unserializable: ${e.message}]`;
+      }
+    }
+
+    function log(...args) {
+      console.log(...args);
+      const line = args.map((a) => (typeof a === "string" ? a : describe(a))).join(" ");
+      logEl.textContent += line + "\n";
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    log("Script tag loaded. Waiting for window.YMK to be available...");
+
+    function tryInit() {
+      const apiKey = document.getElementById("apiKey").value;
+      const secretKey = document.getElementById("secretKey").value;
+
+      if (typeof window.YMK === "undefined") {
+        log("ERROR: window.YMK is not defined yet. The SDK may call window.ymkAsyncInit itself " +
+            "once ready — if this button does nothing useful, wait a second and try again, or " +
+            "check the browser console for script load errors.");
+        return;
+      }
+
+      const options = { apiKey };
+      if (secretKey) options.secretKey = secretKey;
+
+      log("Calling YMK.init with keys:", { apiKey: apiKey ? "(set)" : "(empty)", secretKey: secretKey ? "(set)" : "(empty)" });
+      try {
+        window.YMK.init(options);
+        log("YMK.init() did not throw.");
+        document.getElementById("openBtn").disabled = false;
+      } catch (e) {
+        log("YMK.init() threw:", e.message || String(e));
+      }
+    }
+
+    document.getElementById("initBtn").addEventListener("click", tryInit);
+
+    document.getElementById("openBtn").addEventListener("click", () => {
+      try {
+        window.YMK.openCameraKit();
+        log("openCameraKit() called.");
+      } catch (e) {
+        log("openCameraKit() threw:", e.message || String(e));
+      }
+    });
+
+    // Async-init hook, per the confirmed community example (id="YMK-module" container +
+    // window.YMKAsyncInit casing).
+    window.YMKAsyncInit = function () {
+      log("YMKAsyncInit fired (SDK loaded).");
+      if (window.YMK && typeof window.YMK.on === "function") {
+        window.YMK.on("loaded", (e) => log("event: loaded", e));
+        window.YMK.on("faceDetectionCaptured", (e) => log("event: faceDetectionCaptured", e));
+      } else {
+        log("window.YMK.on is not a function — check console for the real event API shape.");
+      }
+    };
+  </script>
+</body>
+</html>

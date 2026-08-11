@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Your Looks - Undertone</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;700&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        background: "#F7F4EF",
+                        surface: "#FFFFFF",
+                        foreground: "#1C1917",
+                        muted: "#6B6259",
+                        border: "#E7E1D8",
+                        primary: "#2A2320",
+                        onPrimary: "#FAF8F5",
+                        destructive: "#B91C1C"
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.25rem", // 4px
+                        lg: "0.5rem", // 8px
+                        xl: "0.75rem",
+                        full: "9999px"
+                    },
+                    fontFamily: {
+                        headline: ["Playfair Display", "serif"],
+                        body: ["Inter", "sans-serif"],
+                        label: ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-foreground font-body antialiased min-h-screen pb-12">
+<!-- TopAppBar -->
+<header class="flex items-center justify-start h-16 px-6 w-full max-w-screen-md mx-auto sticky top-0 bg-background/90 backdrop-blur-sm z-50">
+<button class="text-foreground hover:opacity-80 transition-opacity duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-primary rounded p-1 -ml-1">
+<span class="material-symbols-outlined text-2xl">arrow_back</span>
+</button>
+</header>
+<main class="w-full max-w-screen-md mx-auto px-6">
+<!-- Header Section -->
+<section class="mt-4 mb-10">
+<h1 class="font-headline text-3xl md:text-4xl font-medium text-foreground tracking-tight mb-2">Three looks, matched to you</h1>
+<p class="font-body text-muted text-base md:text-lg">Based on your skin, eye and hair colour</p>
+</section>
+<!-- Looks Grid -->
+<div class="flex flex-col gap-10">
+<!-- Card 1: Soft -->
+<button class="w-full text-left bg-surface border border-border rounded-lg overflow-hidden group focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-transform duration-300 ease-out hover:-translate-y-1">
+<div class="w-full aspect-[3/4] relative bg-border">
+<img class="w-full h-full object-cover" data-alt="A highly realistic, un-retouched portrait photograph of a woman's face exhibiting 'Soft' makeup. The lighting is natural, bright, and flattering, creating a warm, editorial aesthetic typical of high-end beauty photography. Her makeup features subtle, sheer lip color and a delicate wash of blush. The background is a very soft, warm off-white, ensuring zero saturated hues interfere with the subject's natural skin tones." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCCGH9gv3-2LFB5B6Wz7nThCaJ9zlxuCOXQf5HbLAVRr6NiJBMn4S5kKkjDsq157KQuc297lsxOqt2RPqXfo8wH8S5aFYbUUifiaslgxLTzzopnzxe_9BycsOULrA6SVBi6k_BOUYHUSBTcqrsfafCZR19RBWCwIPnGEJd6jdbS0eRvs42XQrGe5kgJruRmXpn5uXoPdEnCb4i1xVYOhPULFLHuUpxTsmmS6ehuI2-wausdLxSO41ct0DP_3sX-6usSaWA7POIxHCVs"/>
+</div>
+<div class="p-6 flex flex-col gap-6">
+<h2 class="font-headline text-2xl font-medium text-foreground">Soft</h2>
+<div class="flex gap-8">
+<div class="flex flex-col gap-2">
+<span class="font-label text-xs uppercase tracking-widest text-muted">LIP</span>
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full border border-black/10" style="background-color: #C4736F;"></div>
+<span class="font-label tabular-nums text-sm text-foreground">#C4736F</span>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<span class="font-label text-xs uppercase tracking-widest text-muted">BLUSH</span>
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full border border-black/10" style="background-color: #D9A296;"></div>
+<span class="font-label tabular-nums text-sm text-foreground">#D9A296</span>
+</div>
+</div>
+</div>
+</div>
+</button>
+<!-- Card 2: Polished -->
+<button class="w-full text-left bg-surface border border-border rounded-lg overflow-hidden group focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-transform duration-300 ease-out hover:-translate-y-1">
+<div class="w-full aspect-[3/4] relative bg-border">
+<img class="w-full h-full object-cover" data-alt="A highly realistic, un-retouched portrait photograph of a woman's face exhibiting 'Polished' makeup. The lighting is structured and bright, creating a sophisticated, editorial aesthetic typical of premium beauty campaigns. Her makeup features a defined lip line and a sculpted cheek blush. The background is a clean, warm off-white, ensuring no competing saturated colors interfere with the makeup swatches." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBRi_Ca6JMU3cFStdX7rbPOAkpMNOH_Eoe3ZeiGg12y-4pniQb1bloBaX2qayY_iCait2UMwjMBA1X0XqyedejaUb9fB3lOSJd4gd5-So0cGzfV9ImOtKNxVkw2QHt7O5h81QV9Oekclo4xoEBvGh75pfrZGkb4cfUnPT4HviqAAvvB84n-iQgn4_NTY60ZEOqufllisCwFt5SsicRp5LWZH6z7R6RP0eN7_woVGvEbbNz49sfG8FSMKRTQj2UtmnKA2sQ1AXUOm6Hb"/>
+</div>
+<div class="p-6 flex flex-col gap-6">
+<h2 class="font-headline text-2xl font-medium text-foreground">Polished</h2>
+<div class="flex gap-8">
+<div class="flex flex-col gap-2">
+<span class="font-label text-xs uppercase tracking-widest text-muted">LIP</span>
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full border border-black/10" style="background-color: #A8404E;"></div>
+<span class="font-label tabular-nums text-sm text-foreground">#A8404E</span>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<span class="font-label text-xs uppercase tracking-widest text-muted">BLUSH</span>
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full border border-black/10" style="background-color: #C98A80;"></div>
+<span class="font-label tabular-nums text-sm text-foreground">#C98A80</span>
+</div>
+</div>
+</div>
+</div>
+</button>
+<!-- Card 3: Bold -->
+<button class="w-full text-left bg-surface border border-border rounded-lg overflow-hidden group focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-transform duration-300 ease-out hover:-translate-y-1">
+<div class="w-full aspect-[3/4] relative bg-border">
+<img class="w-full h-full object-cover" data-alt="A highly realistic, un-retouched portrait photograph of a woman's face exhibiting 'Bold' makeup. The lighting is direct and editorial, creating a confident, high-end beauty aesthetic. Her makeup features a strong, saturated deep lip color and a noticeable flush of blush on the cheeks. The background is a neutral warm bone color, allowing the bold makeup elements to stand out without competing with UI colors." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDuWkxiMqe-rnXgXD9ug2wLKrnVk30iOxRFidnuM5nMwDG8eLIXSR4-SG1plXrwQsHPieLb6SUB8yIwchmKxgGES9md0V2Es5AZDK9MVbsfruynrO1JzFGfrZr2YsSm6lJKH_pu6EaEkyG3rgxhcpC21lwq1UwL_juaQnThFN7o87f28Cwv-ft-LmzK6sPywE1DyMr8e5fTeu3hv4eQg0LPm1a2prJELgfUEy8lNjn62FWV5Xl1dw8pF29qDd0RiBjt6F-IjWDNM2dj"/>
+</div>
+<div class="p-6 flex flex-col gap-6">
+<h2 class="font-headline text-2xl font-medium text-foreground">Bold</h2>
+<div class="flex gap-8">
+<div class="flex flex-col gap-2">
+<span class="font-label text-xs uppercase tracking-widest text-muted">LIP</span>
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full border border-black/10" style="background-color: #8E1F3A;"></div>
+<span class="font-label tabular-nums text-sm text-foreground">#8E1F3A</span>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<span class="font-label text-xs uppercase tracking-widest text-muted">BLUSH</span>
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full border border-black/10" style="background-color: #B5675F;"></div>
+<span class="font-label tabular-nums text-sm text-foreground">#B5675F</span>
+</div>
+</div>
+</div>
+</div>
+</button>
+</div>
+</main>
+</body></html>
