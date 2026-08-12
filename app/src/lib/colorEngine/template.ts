@@ -338,7 +338,7 @@ function shift(hex: string, { h = 0, chroma = 1, l = 0 }: { h?: number; chroma?:
 function buildEffects(
   spec: LookTemplate,
   inputs: { colors: Measured; profile: ColourProfile; garment?: GarmentInfluence },
-): { effects: MakeupEffect[]; palette: Record<string, string> } {
+): { effects: MakeupEffect[]; palette: Record<string, string>; live: { lip: string; blush: string } } {
   const { register } = spec;
   const accent = spec.accent ?? {};
   const garment = inputs.garment;
@@ -516,10 +516,26 @@ function buildEffects(
     palettes: [lipPalette(lip, spec.lip.texture, spec.lip.intensity)],
   } satisfies LipColorEffect);
 
-  return {
-    effects,
-    palette: { lip, blush, shadowBase, shadowAccent, liner, brow, contour, highlight, lash, lipLiner },
-  };
+  // Only the roles this look actually wears. Every colour above is computed regardless — they
+  // are cheap and some feed each other — but reporting all of them would have the shade list
+  // claim an eyeshadow for a look that applies none.
+  const palette: Record<string, string> = { lip };
+  if (spec.blush) palette.blush = blush;
+  if (spec.eyeshadow) {
+    palette.shadowAccent = shadowAccent;
+    if (spec.eyeshadow.colors > 1) palette.shadowBase = shadowBase;
+  }
+  if (spec.liner) palette.liner = liner;
+  if (spec.lashes) palette.lash = lash;
+  if (spec.brow) palette.brow = brow;
+  if (spec.contour) palette.contour = contour;
+  if (spec.highlighter) palette.highlight = highlight;
+  if (spec.lipLiner) palette.lipLiner = lipLiner;
+
+  // The live layer always draws lip and blush, even for a look that applies no blush effect — a
+  // face on camera still has cheeks — so those two are returned separately from what the look
+  // *reports* wearing.
+  return { effects, palette, live: { lip, blush } };
 }
 
 // --- Selection -------------------------------------------------------------------------------
@@ -594,14 +610,14 @@ function fill(
   spec: LookTemplate,
   inputs: { colors: Measured; profile: ColourProfile; garment?: GarmentInfluence },
 ): FilledLook {
-  const { effects, palette } = buildEffects(spec, inputs);
+  const { effects, palette, live } = buildEffects(spec, inputs);
   return {
     templateId: spec.id,
     label: spec.name,
     why: explain(spec, inputs.profile, inputs.garment),
     register: spec.register,
-    lipColor: palette.lip,
-    blushColor: palette.blush,
+    lipColor: live.lip,
+    blushColor: live.blush,
     palette,
     effects,
   };

@@ -1,24 +1,8 @@
 import { useState } from "react";
 import BackButton from "../components/ui/BackButton";
 import LivePreview from "../components/LivePreview";
-import Swatch from "../components/ui/Swatch";
+import ShadeSheet from "../components/ShadeSheet";
 import type { RenderedLook } from "./LooksScreen";
-
-/**
- * Every colour the render carries, in the order a face is made up. Anything a template omits is
- * skipped rather than shown empty — a look without eyeshadow should not list one.
- */
-const PALETTE_ROWS: Array<{ key: string; label: string }> = [
-  { key: "lip", label: "Lip" },
-  { key: "lipLiner", label: "Lip liner" },
-  { key: "blush", label: "Blush" },
-  { key: "shadowAccent", label: "Eyeshadow" },
-  { key: "liner", label: "Liner" },
-  { key: "lash", label: "Lashes" },
-  { key: "brow", label: "Brow" },
-  { key: "contour", label: "Contour" },
-  { key: "highlight", label: "Highlight" },
-];
 
 interface LivePreviewScreenProps {
   rendered: RenderedLook;
@@ -32,8 +16,10 @@ interface LivePreviewScreenProps {
  */
 export default function LivePreviewScreen({ rendered, onBack }: LivePreviewScreenProps) {
   const [status, setStatus] = useState("Starting camera…");
+  const [shadesOpen, setShadesOpen] = useState(false);
   const { look, imageUrl } = rendered;
   const isLive = status === "Live";
+  const shadeCount = Object.keys(look.palette).length;
 
   return (
     <div className="relative h-dvh w-screen overflow-hidden bg-black">
@@ -65,19 +51,15 @@ export default function LivePreviewScreen({ rendered, onBack }: LivePreviewScree
               <h1 className="font-headline mb-4 text-4xl font-medium tracking-tight text-foreground">
                 {look.label}
               </h1>
-              {/* The whole palette, here rather than on the cards: she is considering one look
-                  now, not scanning five, so the shades she would have to buy are worth the room.
-                  Named by region, since a column of hex codes is a debug view. */}
-              <ul className="mb-3 flex flex-wrap gap-x-5 gap-y-2">
-                {PALETTE_ROWS.map(({ key, label }) =>
-                  look.palette[key] ? (
-                    <li key={key} className="flex items-center gap-2">
-                      <Swatch color={look.palette[key]} size="sm" />
-                      <span className="font-body text-xs text-muted">{label}</span>
-                    </li>
-                  ) : null,
-                )}
-              </ul>
+              {/* One control instead of the palette. The shades are reference, and reference over
+                  a live camera competes with the thing she is actually looking at. */}
+              <button
+                type="button"
+                onClick={() => setShadesOpen(true)}
+                className="font-label transition-interactive mb-3 rounded-lg border border-border px-4 py-2 text-xs uppercase tracking-widest text-foreground hover:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                Shades ({shadeCount})
+              </button>
               <p className="font-body text-sm text-muted">Live preview shows lip and blush</p>
             </div>
 
@@ -95,6 +77,8 @@ export default function LivePreviewScreen({ rendered, onBack }: LivePreviewScree
           </div>
         </div>
       </div>
+
+      <ShadeSheet look={look} open={shadesOpen} onClose={() => setShadesOpen(false)} />
     </div>
   );
 }

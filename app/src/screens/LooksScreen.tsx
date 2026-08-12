@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import Swatch, { HexLabel } from "../components/ui/Swatch";
+import Swatch from "../components/ui/Swatch";
 import ColouringSummary from "../components/ColouringSummary";
 import { TEMPLATE_COUNT, type FilledLook } from "../lib/colorEngine/template";
 import type { ColourProfile } from "../lib/colorEngine/season";
@@ -23,14 +23,17 @@ interface LooksScreenProps {
   onImageExpired: () => void;
 }
 
+/**
+ * No hex on the cards. Three swatches with their values came to roughly 440px against 370px of
+ * card, and the hex is the part that does not earn its width here: this is a view she scans, and
+ * the swatch already carries the colour. The values are on the look's own screen, where there is
+ * room and where she is actually considering one shade.
+ */
 function SwatchPair({ label, color }: { label: string; color: string }) {
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex min-w-0 items-center gap-2">
+      <Swatch color={color} size="md" />
       <span className="font-label text-xs uppercase tracking-widest text-muted">{label}</span>
-      <div className="flex items-center gap-3">
-        <Swatch color={color} size="md" />
-        <HexLabel value={color.toUpperCase()} className="text-foreground" />
-      </div>
     </div>
   );
 }
@@ -88,10 +91,12 @@ export default function LooksScreen({
                   follows her hair, contour sits a shade under her skin — and showing all of it
                   would bury the shades she might actually go and buy. The rest is on the look's
                   own screen, where she is considering one look rather than scanning five. */}
-              <div className="flex gap-8">
+              <div className="flex flex-wrap gap-x-6 gap-y-3">
                 <SwatchPair label="Lip" color={rendered.look.lipColor} />
                 <SwatchPair label="Blush" color={rendered.look.blushColor} />
-                <SwatchPair label="Eye" color={rendered.look.palette.shadowAccent} />
+                {rendered.look.palette.shadowAccent && (
+                  <SwatchPair label="Eye" color={rendered.look.palette.shadowAccent} />
+                )}
               </div>
             </div>
           </button>

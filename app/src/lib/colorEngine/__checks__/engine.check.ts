@@ -117,7 +117,12 @@ if (quietIds.join() === loudIds.join()) {
   // accent response together with the fact that the selections differ. Monochrome is excluded
   // because it deliberately pulls its accent toward the lip, which drowns out any outfit signal.
   const shared = withCool
-    .filter((c) => c.templateId !== "monochrome" && withLoud.some((l) => l.templateId === c.templateId))
+    .filter(
+      (c) =>
+        c.templateId !== "monochrome" &&
+        c.palette.shadowAccent !== undefined &&
+        withLoud.some((l) => l.templateId === c.templateId && l.palette.shadowAccent !== undefined),
+    )
     .map((c) => {
       const other = withLoud.find((l) => l.templateId === c.templateId)!;
       return { label: c.label, cool: c.palette.shadowAccent, warm: other.palette.shadowAccent,
