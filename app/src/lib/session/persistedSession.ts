@@ -2,7 +2,10 @@ import type { FilledLook } from "../colorEngine/template";
 import type { ColourProfile } from "../colorEngine/season";
 import type { FacialColorTonesResult, FitzpatrickScale } from "../youcam/types";
 
-const KEY = "undertone.session.v1";
+// Bumped whenever the stored shape changes. A session written by an older build restored
+// *partially* once — its profile cited a Fitzpatrick type that the session itself no longer
+// carried — and a stale entry that half-works is worse than none.
+const KEY = "undertone.session.v2";
 
 /**
  * Makeup VTO returns pre-signed URLs that expire after 2 hours. Expire our cache well before

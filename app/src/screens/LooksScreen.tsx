@@ -4,7 +4,6 @@ import ColouringSummary from "../components/ColouringSummary";
 import { TEMPLATE_COUNT, type FilledLook } from "../lib/colorEngine/template";
 import type { ColourProfile } from "../lib/colorEngine/season";
 import type { NormalisedColors } from "../lib/colorEngine/normalise";
-import type { FitzpatrickScale } from "../lib/youcam/types";
 
 export interface RenderedLook {
   look: FilledLook;
@@ -17,7 +16,6 @@ interface LooksScreenProps {
   /** What the analysis measured and derived, summarised above the looks. */
   colors: NormalisedColors;
   profile: ColourProfile;
-  fitzpatrick: FitzpatrickScale | null;
   onSelect: (rendered: RenderedLook) => void;
   /** Discards this analysis and returns to the start. Costs 35 API units to redo — see below. */
   onStartOver: () => void;
@@ -45,7 +43,6 @@ export default function LooksScreen({
   looks,
   colors,
   profile,
-  fitzpatrick,
   onSelect,
   onStartOver,
   onImageExpired,
@@ -61,7 +58,7 @@ export default function LooksScreen({
         </p>
       </section>
 
-      <ColouringSummary colors={colors} profile={profile} fitzpatrick={fitzpatrick} />
+      <ColouringSummary colors={colors} profile={profile} />
 
       <div className="flex flex-col gap-10 pb-12">
         {looks.map((rendered) => (

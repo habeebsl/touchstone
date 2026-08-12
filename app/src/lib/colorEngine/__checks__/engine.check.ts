@@ -169,7 +169,7 @@ if (quietIds.join() === loudIds.join()) {
   let previous = -1;
   for (const fx of [...ANALYSIS_FIXTURES].sort((a, b) => "I II III IV V VI".indexOf(a.fitzpatrick) - "I II III IV V VI".indexOf(b.fitzpatrick))) {
     const profile = analyseColouring(fx.colors, fx.fitzpatrick);
-    const guide = foundationGuide(profile, fx.colors.skin_color, fx.fitzpatrick);
+    const guide = foundationGuide(profile, fx.colors.skin_color);
     console.log(`  ${fx.fitzpatrick.padEnd(4)} ${guide.depth.padEnd(7)} ${guide.undertone.padEnd(13)} ${guide.advice}`);
 
     const rung = LADDER.indexOf(guide.depth);
@@ -194,7 +194,7 @@ if (quietIds.join() === loudIds.join()) {
 
   // Without a Fitzpatrick result the advice must say so rather than implying the same confidence.
   const fx = ANALYSIS_FIXTURES[0];
-  const noFitz = foundationGuide(analyseColouring(fx.colors, null), fx.colors.skin_color, null);
+  const noFitz = foundationGuide(analyseColouring(fx.colors, null), fx.colors.skin_color);
   if (!noFitz.advice.includes("estimated")) fail("no Fitzpatrick: advice does not flag the weaker reading");
 }
 

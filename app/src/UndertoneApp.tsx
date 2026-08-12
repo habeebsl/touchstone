@@ -285,7 +285,6 @@ export default function UndertoneApp() {
           looks={looks}
           colors={measured}
           profile={profile}
-          fitzpatrick={fitzpatrick}
           onStartOver={reset}
           onSelect={(rendered) => {
             setSelected(rendered);

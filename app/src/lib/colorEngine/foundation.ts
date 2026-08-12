@@ -15,11 +15,12 @@
 
 import { hexToOklch } from "./oklch";
 import type { ColourProfile } from "./season";
-import type { FitzpatrickScale } from "../youcam/types";
 
 export interface FoundationGuide {
   /** Fair / Light / Medium / Tan / Deep / Rich — the depth ladder brands range by. */
   depth: string;
+  /** Where that sits, since a word like "Rich" means nothing without the scale behind it. */
+  depthMeaning: string;
   /** How the undertone is usually written on a shade name. */
   undertone: string;
   /** One line she can carry into a shop. */
@@ -35,14 +36,11 @@ const DEPTH_LADDER: Array<{ upTo: number; label: string }> = [
   { upTo: 1.01, label: "Rich" },
 ];
 
-export function foundationGuide(
-  profile: ColourProfile,
-  skinHex: string,
-  fitzpatrick: FitzpatrickScale | null,
-): FoundationGuide {
+export function foundationGuide(profile: ColourProfile, skinHex: string): FoundationGuide {
   // profile.depth already blends Fitzpatrick with measured lightness. Without a Fitzpatrick
   // result it is measured lightness alone, which is a weaker but still usable reading.
-  const depth = DEPTH_LADDER.find((step) => profile.depth <= step.upTo)!.label;
+  const rung = DEPTH_LADDER.findIndex((step) => profile.depth <= step.upTo);
+  const depth = DEPTH_LADDER[rung].label;
 
   // Olive is a real and commonly mislabelled case: neutral-to-warm in hue but noticeably lower in
   // chroma than a golden complexion. It is also specifically a mid-depth phenomenon — fair skin
@@ -77,7 +75,11 @@ export function foundationGuide(
 
   return {
     depth,
+    depthMeaning: `${rung + 1} of ${DEPTH_LADDER.length} on the usual depth scale, from fair to deepest.`,
     undertone,
-    advice: fitzpatrick ? advice : `${advice} (Depth estimated from your photo alone.)`,
+    // The caveat is derived from the profile rather than passed in alongside it. Held separately,
+    // the two disagreed: the findings cited a Fitzpatrick type while this claimed the depth had
+    // been estimated without one.
+    advice: profile.fitzpatrick ? advice : `${advice} (Depth estimated from your photo alone.)`,
   };
 }

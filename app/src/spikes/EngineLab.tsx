@@ -65,7 +65,9 @@ export default function EngineLab() {
                 </div>
                 <ul className="font-body list-disc space-y-1 pl-5 text-xs text-muted">
                   {profile.rationale.map((r) => (
-                    <li key={r}>{r}</li>
+                    <li key={r.axis}>
+                      {r.axis}: {r.value} — {r.evidence}
+                    </li>
                   ))}
                 </ul>
               </div>
