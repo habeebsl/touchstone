@@ -140,6 +140,20 @@ export class YouCamClient {
     return this.pollTask<FitzpatrickResult>("fitzpatrick-scale-analyzer", taskId, pollOpts);
   }
 
+  /**
+   * Cut the subject out of a photo — used on an outfit photo so the garment colours can be read
+   * without the background competing. Returns a PNG URL with real transparency (verified) and
+   * CORS open, so the browser can read its pixels.
+   */
+  async removeBackground(
+    req: { src_file_id?: string; src_file_url?: string },
+    pollOpts?: { intervalMs?: number; timeoutMs?: number },
+  ): Promise<string> {
+    const taskId = await this.startTask("sod", req);
+    const result = await this.pollTask<{ url: string }>("sod", taskId, pollOpts);
+    return result.url;
+  }
+
   async runMakeupVto(
     req: MakeupVtoRequest,
     pollOpts?: { intervalMs?: number; timeoutMs?: number },

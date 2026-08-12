@@ -4,11 +4,14 @@ import IntroScreen from "./screens/IntroScreen";
 import AnalysingScreen from "./screens/AnalysingScreen";
 import LooksScreen, { type RenderedLook } from "./screens/LooksScreen";
 import LivePreviewScreen from "./screens/LivePreviewScreen";
+import OutfitScreen from "./screens/OutfitScreen";
 import { useCameraKit } from "./lib/cameraKit/useCameraKit";
 import { YouCamClient } from "./lib/youcam/client";
 import { selectLooks } from "./lib/colorEngine/template";
 import { analyseColouring, type ColourProfile } from "./lib/colorEngine/season";
-import { normaliseMeasured } from "./lib/colorEngine/normalise";
+import { normaliseMeasured, type NormalisedColors } from "./lib/colorEngine/normalise";
+import { garmentPaletteFromImage, type GarmentSwatch } from "./lib/garment/palette";
+import { garmentInfluence } from "./lib/garment/influence";
 import { getFixture, rememberAnalysis } from "./lib/fixtures/analysisFixtures";
 import { clearSession, loadSession, saveSession } from "./lib/session/persistedSession";
 import type { FacialColorTonesResult, FitzpatrickScale } from "./lib/youcam/types";
@@ -26,7 +29,7 @@ const SECRET_KEY = import.meta.env.VITE_YOUCAM_SECRET_KEY as string | undefined;
  */
 const FIXTURE = getFixture(new URLSearchParams(window.location.search).get("fixture"));
 
-type Stage = "intro" | "analysing" | "looks" | "live";
+type Stage = "intro" | "analysing" | "outfit" | "looks" | "live";
 
 /**
  * How many of the ten templates each person is shown.
@@ -37,16 +40,27 @@ type Stage = "intro" | "analysing" | "looks" | "live";
  */
 const LOOKS_SHOWN = 5;
 
-// Real units of work, used to drive the progress bar honestly: upload, colour tones,
-// Fitzpatrick, and one per rendered look.
-const TOTAL_STEPS = 3 + LOOKS_SHOWN;
+// Real units of work, used to drive the progress bar honestly. The analysis pass is upload plus
+// two measurements; the render pass is one step per look. They are separate stages now — the
+// outfit question sits between them — so the bar is scaled to whichever pass is running rather
+// than to a total that would sit still through the outfit step.
+const ANALYSIS_STEPS = 3;
+const RENDER_STEPS = LOOKS_SHOWN;
 
 export default function UndertoneApp() {
   // Restore a completed analysis if this tab reloaded — see lib/session/persistedSession.ts.
   const restored = useState(() => loadSession())[0];
 
   const [stage, setStage] = useState<Stage>(restored ? "looks" : "intro");
+  // Two views of the same thing, deliberately. `colors` is what has arrived so far and may be
+  // partial — the analysing screen shows each field the moment it lands. `measured` is the
+  // normalised, hole-free record the engine runs on, and only exists once normalisation has run.
   const [colors, setColors] = useState<FacialColorTonesResult["color"] | null>(restored?.colors ?? null);
+  const [measured, setMeasured] = useState<NormalisedColors | null>(
+    // A restored session is deserialised JSON, so it is normalised on read like every other
+    // untrusted source of colours.
+    restored ? normaliseMeasured(restored.colors).colors : null,
+  );
   const [profile, setProfile] = useState<ColourProfile | null>(restored?.profile ?? null);
   const [looks, setLooks] = useState<RenderedLook[]>(restored?.looks ?? []);
   const [selected, setSelected] = useState<RenderedLook | null>(null);
@@ -54,18 +68,33 @@ export default function UndertoneApp() {
   const [status, setStatus] = useState("Uploading your photo");
   const [error, setError] = useState<string | null>(null);
 
+  // Outfit step. Held here rather than in the screen because the render pass needs it, and
+  // because a reload should not silently drop the outfit a look was built around.
+  const [fileId, setFileId] = useState<string | null>(restored?.fileId ?? null);
+  const [fitzpatrick, setFitzpatrick] = useState<FitzpatrickScale | null>(null);
+  const [garmentSwatches, setGarmentSwatches] = useState<GarmentSwatch[] | null>(null);
+  const [garmentPreview, setGarmentPreview] = useState<string | null>(null);
+  const [garmentBusy, setGarmentBusy] = useState(false);
+  const [garmentError, setGarmentError] = useState<string | null>(null);
+
   const client = useMemo(() => new YouCamClient({ apiKey: API_KEY }), []);
 
   const reset = useCallback(() => {
     clearSession();
     setStage("intro");
     setColors(null);
+    setMeasured(null);
     setProfile(null);
     setLooks([]);
     setSelected(null);
     setStepsDone(0);
     setStatus("Uploading your photo");
     setError(null);
+    setFileId(null);
+    setFitzpatrick(null);
+    setGarmentSwatches(null);
+    setGarmentPreview(null);
+    setGarmentError(null);
   }, []);
 
   const handleCapture = useCallback(
@@ -116,43 +145,23 @@ export default function UndertoneApp() {
         // Single normalisation point, applied to every source. Replayed fixtures go through it
         // too: `?fixture=mine` deserialises from localStorage and can be missing fields written
         // by an older build, and a bypass here is what let a partial record reach the engine.
-        const { colors: measured, inferred } = normaliseMeasured(raw);
+        const { colors: normalised, inferred } = normaliseMeasured(raw);
         if (inferred.length) console.info("[undertone] inferred (not measured):", inferred.join(", "));
-        setColors(measured);
+        setColors(normalised);
+        setMeasured(normalised);
 
         // Remember it so `?fixture=mine` can replay this exact analysis for free.
-        if (!FIXTURE && fitzpatrick) rememberAnalysis(measured, fitzpatrick);
+        if (!FIXTURE && fitzpatrick) rememberAnalysis(normalised, fitzpatrick);
 
-        const derived = analyseColouring(measured, fitzpatrick);
+        const derived = analyseColouring(normalised, fitzpatrick);
         setProfile(derived);
 
-        setStatus("Rendering your looks");
-        const filled = selectLooks(measured, fitzpatrick, LOOKS_SHOWN);
-
-        const rendered = await Promise.all(
-          filled.map(async (look) => {
-            const result = await client.runMakeupVto({
-              src_file_id: uploadedFileId,
-              effects: look.effects,
-              version: "1.0",
-            });
-            advance();
-            return { look, imageUrl: result.url };
-          }),
-        );
-
-        setLooks(rendered);
-        setStage("looks");
-
-        // Only a finished analysis is worth persisting: it cost 33 API units, and an in-flight
-        // one has pending promises that could not be resumed anyway.
-        saveSession({
-          fileId: uploadedFileId,
-          colors: measured,
-          profile: derived,
-          looks: rendered,
-          selectedTemplateId: null,
-        });
+        // Ask about the outfit before rendering rather than after. Rendering is the expensive
+        // part, and the outfit changes which looks are worth rendering at all — asking
+        // afterwards would mean paying twice for the same five slots.
+        setFileId(uploadedFileId);
+        setFitzpatrick(fitzpatrick);
+        setStage("outfit");
       } catch (err) {
         console.error(err);
         setError(err instanceof Error ? err.message : String(err));
@@ -161,7 +170,86 @@ export default function UndertoneApp() {
     [client],
   );
 
+  /**
+   * Render the looks. Split out from the analysis so the outfit step can sit between them —
+   * this is the part that costs a unit per look, so it runs once, with the outfit already known.
+   */
+  const renderLooks = useCallback(
+    async (garment?: GarmentSwatch[]) => {
+      if (!fileId || !measured) return;
+      setStage("analysing");
+      setStatus("Rendering your looks");
+      setStepsDone(0);
+      setError(null);
+
+      try {
+        const influence = garment && garment.length > 0 ? garmentInfluence(garment) : undefined;
+        const filled = selectLooks(measured, fitzpatrick, LOOKS_SHOWN, influence);
+
+        const rendered = await Promise.all(
+          filled.map(async (look) => {
+            const result = await client.runMakeupVto({
+              src_file_id: fileId,
+              effects: look.effects,
+              version: "1.0",
+            });
+            setStepsDone((n) => n + 1);
+            return { look, imageUrl: result.url };
+          }),
+        );
+
+        setLooks(rendered);
+        setStage("looks");
+
+        // Only a finished run is worth persisting: it cost 35 API units, and an in-flight one has
+        // pending promises that could not be resumed anyway.
+        if (profile) {
+          saveSession({ fileId, colors: measured, profile, looks: rendered, selectedTemplateId: null });
+        }
+      } catch (err) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [client, measured, fileId, fitzpatrick, profile],
+  );
+
+  /**
+   * Read the colours out of an outfit photo: upload, cut the background out (so the backdrop
+   * cannot compete), then extract. Her measured skin and hair are passed in so the wearer is
+   * excluded by lookup rather than by guesswork.
+   */
+  const handleOutfitPhoto = useCallback(
+    async (file: File) => {
+      setGarmentBusy(true);
+      setGarmentError(null);
+      setGarmentPreview(URL.createObjectURL(file));
+
+      try {
+        const garmentFileId = await client.uploadFile(file);
+        const cutoutUrl = await client.removeBackground({ src_file_id: garmentFileId });
+        const palette = await garmentPaletteFromImage(cutoutUrl, {
+          hasAlphaMask: true,
+          skinHex: measured?.skin_color,
+          hairHex: measured?.hair_color,
+        });
+        setGarmentSwatches(palette.swatches);
+      } catch (err) {
+        console.error(err);
+        // Recoverable: she can retry or skip, and the analysis behind her is untouched.
+        setGarmentError("We couldn't read that photo. Try another, or skip this step.");
+        setGarmentPreview(null);
+      } finally {
+        setGarmentBusy(false);
+      }
+    },
+    [client, measured],
+  );
+
   const camera = useCameraKit({ apiKey: API_KEY, secretKey: SECRET_KEY, onCapture: handleCapture });
+
+  // The analysing screen is shown for both passes; only the render pass has a file id in hand.
+  const looksPending = fileId !== null;
 
   const fatal = error ?? (!API_KEY ? "VITE_YOUCAM_API_KEY is not set in .env.local" : null) ?? camera.error;
 
@@ -179,8 +267,18 @@ export default function UndertoneApp() {
         <AnalysingScreen
           colors={colors}
           profile={profile}
-          progress={stepsDone / TOTAL_STEPS}
+          progress={stepsDone / (looksPending ? RENDER_STEPS : ANALYSIS_STEPS)}
           status={status}
+        />
+      ) : stage === "outfit" ? (
+        <OutfitScreen
+          onPhoto={handleOutfitPhoto}
+          swatches={garmentSwatches}
+          previewUrl={garmentPreview}
+          busy={garmentBusy}
+          error={garmentError}
+          onContinue={(keep) => void renderLooks(keep)}
+          onSkip={() => void renderLooks()}
         />
       ) : stage === "looks" ? (
         <LooksScreen
