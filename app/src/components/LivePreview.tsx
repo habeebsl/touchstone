@@ -1,10 +1,20 @@
 import { useEffect, useRef } from "react";
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
-import { buildLipMask, buildBlushMask, compositeRegion } from "../lib/livePreview/blendOverlay";
+import { hexToOklch } from "../lib/colorEngine/oklch";
+import {
+  buildLipMask,
+  buildBlushMask,
+  chooseBlend,
+  compositeRegion,
+  smoothLandmarks,
+  type NormalizedLandmark,
+} from "../lib/livePreview/blendOverlay";
 
 interface LivePreviewProps {
   lipColor: string;
   blushColor: string;
+  /** Her measured skin colour, which decides how each shade has to be composited to be seen. */
+  skinColor: string;
   /** Applied to the output canvas so the parent controls framing (full-bleed vs boxed). */
   className?: string;
   onStatusChange?: (status: string) => void;
@@ -14,7 +24,6 @@ const WASM_BASE = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/w
 const MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
 
-const BLEND_MODE: GlobalCompositeOperation = "multiply";
 const LIP_INTENSITY = 0.75;
 const BLUSH_INTENSITY = 0.45;
 const FEATHER = 4;
@@ -24,6 +33,7 @@ const FEATHER = 4;
 export default function LivePreview({
   lipColor,
   blushColor,
+  skinColor,
   className = "",
   onStatusChange,
 }: LivePreviewProps) {
@@ -33,6 +43,10 @@ export default function LivePreview({
   const blushMaskRef = useRef<HTMLCanvasElement>(document.createElement("canvas"));
   const colorScratchRef = useRef<HTMLCanvasElement>(document.createElement("canvas"));
   const landmarkerRef = useRef<FaceLandmarker | null>(null);
+  const lipBlend = chooseBlend(hexToOklch(lipColor).l, hexToOklch(skinColor).l);
+  const blushBlend = chooseBlend(hexToOklch(blushColor).l, hexToOklch(skinColor).l);
+  // Previous frame's smoothed landmarks, so the overlay edge stops shimmering between detections.
+  const smoothedRef = useRef<NormalizedLandmark[] | null>(null);
   const rafRef = useRef<number | null>(null);
 
   // Held in a ref so a changing callback identity never restarts the camera pipeline.
@@ -96,7 +110,13 @@ export default function LivePreview({
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      const landmarks = result.faceLandmarks[0];
+      const detected = result.faceLandmarks[0];
+      // Drop the smoothing history when the face leaves frame, or it eases in from wherever the
+      // face was last seen when she comes back.
+      if (!detected) smoothedRef.current = null;
+      const landmarks = detected ? smoothLandmarks(smoothedRef.current, detected) : null;
+      smoothedRef.current = landmarks;
+
       if (landmarks) {
         const w = canvas.width;
         const h = canvas.height;
@@ -107,7 +127,7 @@ export default function LivePreview({
           blushMaskRef.current,
           colorScratchRef.current,
           blushColor,
-          BLEND_MODE,
+          blushBlend,
           BLUSH_INTENSITY,
           w,
           h,
@@ -119,7 +139,7 @@ export default function LivePreview({
           lipMaskRef.current,
           colorScratchRef.current,
           lipColor,
-          BLEND_MODE,
+          lipBlend,
           LIP_INTENSITY,
           w,
           h,

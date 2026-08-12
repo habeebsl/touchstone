@@ -21,7 +21,7 @@ type Stage =
       colors: FacialColorTonesResult["color"];
       fitzpatrick: FitzpatrickResult;
     }
-  | { name: "live"; look: FilledLook }
+  | { name: "live"; look: FilledLook; colors: FacialColorTonesResult["color"] }
   | { name: "error"; message: string };
 
 // Prebuild-validation.md item 5, the last blocking spike: wire every piece built so far into one
@@ -104,7 +104,7 @@ export default function EndToEndSpike() {
             alt={`${stage.look.label} look`}
             style={{ maxWidth: 400, borderRadius: 8, display: "block", marginTop: 8 }}
           />
-          <button style={{ marginTop: 12 }} onClick={() => setStage({ name: "live", look: stage.look })}>
+          <button style={{ marginTop: 12 }} onClick={() => setStage({ name: "live", look: stage.look, colors: stage.colors })}>
             See it live
           </button>
         </div>
@@ -113,7 +113,11 @@ export default function EndToEndSpike() {
       {stage.name === "live" && (
         <div>
           <LookSwatches look={stage.look} />
-          <LivePreview lipColor={stage.look.lipColor} blushColor={stage.look.blushColor} />
+          <LivePreview
+            lipColor={stage.look.lipColor}
+            blushColor={stage.look.blushColor}
+            skinColor={stage.colors.skin_color ?? "#c69c7b"}
+          />
         </div>
       )}
 

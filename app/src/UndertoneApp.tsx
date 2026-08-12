@@ -295,8 +295,12 @@ export default function UndertoneApp() {
             setError("Your looks have expired. Renders are only kept for a couple of hours.");
           }}
         />
-      ) : selected ? (
-        <LivePreviewScreen rendered={selected} onBack={() => setStage("looks")} />
+      ) : selected && measured ? (
+        <LivePreviewScreen
+          rendered={selected}
+          skinColor={measured.skin_color}
+          onBack={() => setStage("looks")}
+        />
       ) : null}
     </>
   );
