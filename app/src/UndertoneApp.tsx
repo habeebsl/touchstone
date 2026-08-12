@@ -299,6 +299,7 @@ export default function UndertoneApp() {
         <LivePreviewScreen
           rendered={selected}
           skinColor={measured.skin_color}
+          lipBaseColor={measured.lip_color}
           onBack={() => setStage("looks")}
         />
       ) : null}

@@ -1,11 +1,10 @@
 import { useEffect, useRef } from "react";
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
-import { hexToOklch } from "../lib/colorEngine/oklch";
 import {
   buildLipMask,
   buildBlushMask,
-  chooseBlend,
   compositeRegion,
+  luminanceShiftFor,
   smoothLandmarks,
   type NormalizedLandmark,
 } from "../lib/livePreview/blendOverlay";
@@ -13,8 +12,13 @@ import {
 interface LivePreviewProps {
   lipColor: string;
   blushColor: string;
-  /** Her measured skin colour, which decides how each shade has to be composited to be seen. */
+  /**
+   * What each shade is going *over*: her measured lip colour for the lip, her skin for the
+   * cheek. Compositing both against skin was wrong — lips are already deeper and more saturated
+   * than the face, so a shade sized against skin lands wide of what it actually has to shift.
+   */
   skinColor: string;
+  lipBaseColor: string;
   /** Applied to the output canvas so the parent controls framing (full-bleed vs boxed). */
   className?: string;
   onStatusChange?: (status: string) => void;
@@ -24,8 +28,21 @@ const WASM_BASE = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/w
 const MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
 
-const LIP_INTENSITY = 0.75;
-const BLUSH_INTENSITY = 0.45;
+// The `color` pass preserves the video's luminosity, so it can run strong without flattening
+// anything — the old 0.75 was low because flat colour at full strength looked painted.
+const LIP_INTENSITY = 0.9;
+const BLUSH_INTENSITY = 0.5;
+
+// Caps on the luminance nudge. The lip may legitimately deepen; blush must stay a flush, so it
+// is allowed far less.
+const LIP_LUMINANCE_CAP = 0.35;
+const BLUSH_LUMINANCE_CAP = 0.15;
+
+// The change each region has to achieve to read as makeup at all, in perceptual distance from
+// what is underneath it. Below this the recolour is technically applied and effectively invisible.
+const LIP_TARGET_CHANGE = 0.07;
+const BLUSH_TARGET_CHANGE = 0.03;
+
 const FEATHER = 4;
 
 /** The product's actual live preview: tap a look, see its lip + blush colors live. No user
@@ -34,6 +51,7 @@ export default function LivePreview({
   lipColor,
   blushColor,
   skinColor,
+  lipBaseColor,
   className = "",
   onStatusChange,
 }: LivePreviewProps) {
@@ -43,8 +61,17 @@ export default function LivePreview({
   const blushMaskRef = useRef<HTMLCanvasElement>(document.createElement("canvas"));
   const colorScratchRef = useRef<HTMLCanvasElement>(document.createElement("canvas"));
   const landmarkerRef = useRef<FaceLandmarker | null>(null);
-  const lipBlend = chooseBlend(hexToOklch(lipColor).l, hexToOklch(skinColor).l);
-  const blushBlend = chooseBlend(hexToOklch(blushColor).l, hexToOklch(skinColor).l);
+  // Solved once per look rather than per frame: what is underneath does not change.
+  const lipShift = luminanceShiftFor(lipColor, lipBaseColor, {
+    cap: LIP_LUMINANCE_CAP,
+    target: LIP_TARGET_CHANGE,
+    intensity: LIP_INTENSITY,
+  });
+  const blushShift = luminanceShiftFor(blushColor, skinColor, {
+    cap: BLUSH_LUMINANCE_CAP,
+    target: BLUSH_TARGET_CHANGE,
+    intensity: BLUSH_INTENSITY,
+  });
   // Previous frame's smoothed landmarks, so the overlay edge stops shimmering between detections.
   const smoothedRef = useRef<NormalizedLandmark[] | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -127,7 +154,7 @@ export default function LivePreview({
           blushMaskRef.current,
           colorScratchRef.current,
           blushColor,
-          blushBlend,
+          blushShift,
           BLUSH_INTENSITY,
           w,
           h,
@@ -139,7 +166,7 @@ export default function LivePreview({
           lipMaskRef.current,
           colorScratchRef.current,
           lipColor,
-          lipBlend,
+          lipShift,
           LIP_INTENSITY,
           w,
           h,

@@ -7,6 +7,7 @@ import type { RenderedLook } from "./LooksScreen";
 interface LivePreviewScreenProps {
   rendered: RenderedLook;
   skinColor: string;
+  lipBaseColor: string;
   onBack: () => void;
 }
 
@@ -15,7 +16,7 @@ interface LivePreviewScreenProps {
  * lashes or brows. Rather than hide that, the full static render stays on screen as a reference
  * thumbnail and the caption says plainly what the live view covers.
  */
-export default function LivePreviewScreen({ rendered, skinColor, onBack }: LivePreviewScreenProps) {
+export default function LivePreviewScreen({ rendered, skinColor, lipBaseColor, onBack }: LivePreviewScreenProps) {
   const [status, setStatus] = useState("Starting camera…");
   const [shadesOpen, setShadesOpen] = useState(false);
   const { look, imageUrl } = rendered;
@@ -30,6 +31,7 @@ export default function LivePreviewScreen({ rendered, skinColor, onBack }: LiveP
           lipColor={look.lipColor}
           blushColor={look.blushColor}
           skinColor={skinColor}
+          lipBaseColor={lipBaseColor}
           onStatusChange={setStatus}
           className="h-full w-full object-cover"
         />

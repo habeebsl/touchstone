@@ -7,6 +7,8 @@
 // a blend mode lets the underlying shading, specular highlights and lip texture show through.
 // Painting flat colour reads as a sticker, which is what the first version of the blush did.
 
+import { deltaE, hexToOklch } from "../colorEngine/oklch";
+
 export const OUTER_LIPS = [
   61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84, 181, 91, 146, 61,
 ];
@@ -151,15 +153,29 @@ export function buildBlushMask(
 }
 
 /**
- * Fills `colorCanvas` with `color` clipped to whatever's currently in `maskCanvas`, then
- * composites it onto `targetCtx` with a blend mode so underlying shading/highlights show through.
+ * Tint a region so it reads as makeup rather than as paint.
+ *
+ * Compositing flat colour — multiply, screen, whatever — shifts every pixel in the region the
+ * same way, so the lip's own shading, its specular highlight and the skin's texture are all
+ * flattened. That is precisely what "paint on a photo" looks like, and no amount of lowering the
+ * opacity fixes it: it just makes for thinner paint.
+ *
+ * Makeup does not cover a surface, it changes that surface's colour while all of its light
+ * behaviour survives. So this is two passes:
+ *
+ *   1. `color` — takes hue and saturation from the shade and **luminosity from the video**. Every
+ *      highlight, crease and shadow in the original comes through untouched; only the colour
+ *      changes. This is the pass that does the work.
+ *   2. A small luminance nudge, because real lipstick genuinely does change how light the lip is.
+ *      Sized by how far the shade sits from her skin, and capped — enough to register, never
+ *      enough to flatten what pass 1 preserved.
  */
 export function compositeRegion(
   targetCtx: CanvasRenderingContext2D,
   maskCanvas: HTMLCanvasElement,
   colorCanvas: HTMLCanvasElement,
   color: string,
-  blendMode: GlobalCompositeOperation,
+  luminanceShift: { mode: GlobalCompositeOperation; alpha: number },
   intensity: number,
   w: number,
   h: number,
@@ -174,7 +190,96 @@ export function compositeRegion(
 
   targetCtx.save();
   targetCtx.globalAlpha = intensity;
-  targetCtx.globalCompositeOperation = blendMode;
+  targetCtx.globalCompositeOperation = "color";
   targetCtx.drawImage(colorCanvas, 0, 0);
+
+  if (luminanceShift.alpha > 0.01) {
+    targetCtx.globalAlpha = luminanceShift.alpha;
+    targetCtx.globalCompositeOperation = luminanceShift.mode;
+    targetCtx.drawImage(colorCanvas, 0, 0);
+  }
   targetCtx.restore();
+}
+
+// --- Predicting the composite ----------------------------------------------------------------
+//
+// The canvas does the real work, but the same arithmetic is needed up front to decide how hard
+// to push: how visible a shade will end up is not knowable from the shade alone. These are the
+// W3C compositing definitions, and they are exported so the checks exercise this code rather
+// than a parallel implementation of it that can drift.
+
+const toRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+const toHex = (rgb: number[]) =>
+  "#" + rgb.map((v) => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, "0")).join("");
+
+const SEPARABLE: Record<string, (b: number, s: number) => number> = {
+  multiply: (b, s) => b * s,
+  screen: (b, s) => b + s - b * s,
+};
+
+const lum = (c: number[]) => 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2];
+
+function clipColor(c: number[]): number[] {
+  const l = lum(c);
+  const min = Math.min(...c);
+  const max = Math.max(...c);
+  let out = c;
+  if (min < 0) out = out.map((v) => l + ((v - l) * l) / (l - min));
+  if (max > 1) out = out.map((v) => l + ((v - l) * (1 - l)) / (max - l));
+  return out;
+}
+
+/** Hue and saturation from the shade, luminosity from what is underneath. */
+function colorBlend(backdrop: number[], shade: number[]): number[] {
+  const d = lum(backdrop) - lum(shade);
+  return clipColor(shade.map((v) => v + d));
+}
+
+/** What a pixel of `backdrop` becomes under the two-pass tint. */
+export function predictComposite(
+  backdropHex: string,
+  shadeHex: string,
+  shift: { mode: GlobalCompositeOperation; alpha: number },
+  intensity: number,
+): string {
+  const backdrop = toRgb(backdropHex);
+  const shade = toRgb(shadeHex);
+
+  const recoloured = colorBlend(backdrop, shade).map((v, i) => backdrop[i] + (v - backdrop[i]) * intensity);
+  if (shift.alpha <= 0.01) return toHex(recoloured);
+
+  return toHex(
+    recoloured.map((b, i) => b + (SEPARABLE[shift.mode as string](b, shade[i]) - b) * shift.alpha),
+  );
+}
+
+/**
+ * How far to push the luminance pass so the shade actually reads.
+ *
+ * A fixed function of the lightness gap is not enough, and finding out why was the useful part:
+ * `color` forces the backdrop's luminosity onto the shade, so on deep lips a vivid red is clipped
+ * back toward grey and the recolour barely registers — a measured dE of 0.016 on one fixture,
+ * which is invisible. The amount of push needed depends on the backdrop, so it is solved for
+ * rather than assumed.
+ *
+ * Same principle as the palette's visibility guard: aim for a minimum perceptual change, and
+ * stop at a cap rather than chasing it into looking painted.
+ */
+export function luminanceShiftFor(
+  shadeHex: string,
+  backdropHex: string,
+  { cap, target, intensity }: { cap: number; target: number; intensity: number },
+): { mode: GlobalCompositeOperation; alpha: number } {
+  const mode = chooseBlend(hexToOklch(shadeHex).l, hexToOklch(backdropHex).l);
+
+  let alpha = 0;
+  while (alpha < cap) {
+    const next = Math.min(cap, alpha + 0.02);
+    const reached = deltaE(predictComposite(backdropHex, shadeHex, { mode, alpha: next }, intensity), backdropHex);
+    if (reached >= target) {
+      return { mode, alpha: next };
+    }
+    alpha = next;
+  }
+  return { mode, alpha: cap };
 }

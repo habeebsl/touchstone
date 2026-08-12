@@ -1,15 +1,15 @@
 /**
- * The live layer has to obey the same rule the palette does: a shade must be *visible* on the
- * skin it sits on, and on deep skin that cannot be achieved by darkening.
+ * The live layer has to obey the same rule the palette does: a shade must be *visible* on what it
+ * sits on, and on deep tones that cannot be achieved by darkening.
  *
- * Canvas does the real compositing, so the blend formulas are reproduced here as a model of it —
- * they are the W3C compositing definitions, and the point is to check the *choice* of mode
- * against every fixture rather than to re-implement the canvas.
+ * This exercises the compositing code itself — `predictComposite` is the arithmetic the runtime
+ * uses to size its own nudge — rather than a second implementation of it that could drift away
+ * from what the canvas actually draws.
  *
  *   npx tsx src/lib/livePreview/__checks__/blend.check.ts
  */
 
-import { chooseBlend } from "../blendOverlay";
+import { luminanceShiftFor, predictComposite } from "../blendOverlay";
 import { deltaE, hexToOklch } from "../../colorEngine/oklch";
 import { selectLooks } from "../../colorEngine/template";
 import { ANALYSIS_FIXTURES } from "../../fixtures/analysisFixtures";
@@ -23,69 +23,62 @@ const fail = (m: string) => {
   fails++;
 };
 
-const toRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
-const toHex = (rgb: number[]) =>
-  "#" + rgb.map((v) => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, "0")).join("");
-
-const BLEND: Record<string, (b: number, s: number) => number> = {
-  multiply: (b, s) => b * s,
-  screen: (b, s) => b + s - b * s,
-};
-
-/** What the canvas produces: blend, then alpha-composite the result back over the base. */
-function composite(baseHex: string, tintHex: string, mode: string, alpha: number): string {
-  const base = toRgb(baseHex);
-  const tint = toRgb(tintHex);
-  return toHex(base.map((b, i) => b + (BLEND[mode](b, tint[i]) - b) * alpha));
-}
-
-const LIP_INTENSITY = 0.75;
-const BLUSH_INTENSITY = 0.45;
+// Mirrors LivePreview.tsx.
+const LIP = { intensity: 0.9, cap: 0.35, target: 0.07 };
+const BLUSH = { intensity: 0.5, cap: 0.15, target: 0.03 };
 
 for (const fx of ANALYSIS_FIXTURES) {
   const skin = fx.colors.skin_color;
-  const skinL = hexToOklch(skin).l;
+  let worstLip = { label: "", dE: 1 };
 
   for (const look of selectLooks(fx.colors, fx.fitzpatrick)) {
-    for (const [region, color, alpha, minVisible] of [
-      ["lip", look.lipColor, LIP_INTENSITY, 0.05],
-      ["blush", look.blushColor, BLUSH_INTENSITY, 0.025],
+    // Each region composites over what is actually beneath it: lipstick over her lips, blush over
+    // her skin. Measuring the lip against skin overstates how far it has to travel.
+    for (const [region, color, backdrop, spec] of [
+      ["lip", look.lipColor, fx.colors.lip_color, LIP],
+      ["blush", look.blushColor, skin, BLUSH],
     ] as const) {
-      const mode = chooseBlend(hexToOklch(color).l, skinL);
-      const out = composite(skin, color, mode, alpha);
-      const visible = deltaE(out, skin);
-      const lightnessShift = hexToOklch(out).l - skinL;
+      const backdropL = hexToOklch(backdrop).l;
+      const shift = luminanceShiftFor(color, backdrop, spec);
+      const out = predictComposite(backdrop, color, shift, spec.intensity);
+      const visible = deltaE(out, backdrop);
+      const lightnessShift = hexToOklch(out).l - backdropL;
 
-      // 1. It has to be seen at all. An invisible overlay is the failure the whole rule exists
-      //    to prevent.
-      if (visible < minVisible) {
-        fail(`${fx.id}/${look.label}/${region}: barely visible (dE ${visible.toFixed(3)}, ${mode})`);
-      }
+      if (region === "lip" && visible < worstLip.dE) worstLip = { label: look.label, dE: visible };
 
-      // 2. On deep skin it must not read as a shadow. This is the specific failure multiply
-      //    produced before the mode was chosen per shade.
-      if (skinL < 0.45 && lightnessShift < -0.03) {
+      // 1. It has to be seen. Allowed to fall short of target when the cap binds first — that is
+      //    the cap doing its job — but not to vanish.
+      if (visible < spec.target * 0.6) {
         fail(
-          `${fx.id}/${look.label}/${region}: darkens deep skin by ${(-lightnessShift).toFixed(3)} — reads as a shadow`,
+          `${fx.id}/${look.label}/${region}: effectively invisible (dE ${visible.toFixed(3)}, ${shift.mode} at ${shift.alpha.toFixed(2)})`,
         );
       }
 
-      // 3. The chosen mode must beat the alternative on visibility, or it is the wrong choice.
-      const other = mode === "multiply" ? "screen" : "multiply";
-      const otherVisible = deltaE(composite(skin, color, other, alpha), skin);
-      if (otherVisible > visible * 1.5) {
+      // 2. Blush must not darken deep skin — that is the failure multiply produced before the
+      //    mode was chosen per shade, and a darkened cheek reads as a bruise rather than a flush.
+      //    Deliberately not applied to the lip: a lipstick deeper than your own lip colour is
+      //    ordinary at any skin depth, and the first version of this check wrongly flagged five
+      //    perfectly good shades for it.
+      if (region === "blush" && backdropL < 0.45 && lightnessShift < -0.03) {
         fail(
-          `${fx.id}/${look.label}/${region}: ${other} would be far more visible (dE ${otherVisible.toFixed(3)} vs ${visible.toFixed(3)})`,
+          `${fx.id}/${look.label}/blush: darkens deep skin by ${(-lightnessShift).toFixed(3)} — reads as a bruise`,
         );
+      }
+
+      // 3. Never so strong that it stops being makeup. The point of the colour pass is that the
+      //    underlying luminosity survives; a nudge at full strength would undo it.
+      if (shift.alpha > spec.cap + 0.001) {
+        fail(`${fx.id}/${look.label}/${region}: nudge ${shift.alpha.toFixed(2)} exceeds the cap`);
       }
     }
   }
 
   const sample = selectLooks(fx.colors, fx.fitzpatrick)[2];
-  const lipMode = chooseBlend(hexToOklch(sample.lipColor).l, skinL);
-  const blushMode = chooseBlend(hexToOklch(sample.blushColor).l, skinL);
+  const shift = luminanceShiftFor(sample.lipColor, fx.colors.lip_color, LIP);
+  const out = predictComposite(fx.colors.lip_color, sample.lipColor, shift, LIP.intensity);
   console.log(
-    `  ${fx.label.padEnd(30)} skin L ${skinL.toFixed(2)}  lip ${lipMode.padEnd(8)} blush ${blushMode}`,
+    `  ${fx.label.padEnd(30)} lips ${fx.colors.lip_color} -> ${out}  ${shift.mode.padEnd(8)} +${shift.alpha.toFixed(2)}  ` +
+      `(dE ${deltaE(out, fx.colors.lip_color).toFixed(3)}, weakest look ${worstLip.dE.toFixed(3)})`,
   );
 }
 

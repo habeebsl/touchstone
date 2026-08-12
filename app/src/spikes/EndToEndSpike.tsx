@@ -117,6 +117,7 @@ export default function EndToEndSpike() {
             lipColor={stage.look.lipColor}
             blushColor={stage.look.blushColor}
             skinColor={stage.colors.skin_color ?? "#c69c7b"}
+            lipBaseColor={stage.colors.lip_color ?? stage.colors.skin_color ?? "#b9776f"}
           />
         </div>
       )}
