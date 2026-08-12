@@ -2,6 +2,7 @@ import { ANALYSIS_FIXTURES } from "../../fixtures/analysisFixtures";
 import { analyseColouring } from "../season";
 import { fillLooks, selectLooks } from "../template";
 import { garmentInfluence } from "../../garment/influence";
+import { foundationGuide } from "../foundation";
 import { hexToOklch, deltaE } from "../oklch";
 
 let fails = 0;
@@ -157,6 +158,44 @@ if (quietIds.join() === loudIds.join()) {
   if (muted === 0) fail("the lip does not step back from an outfit in its own hue family");
 
   console.log("  outfit shifts the eye and the selection, and leaves the lip hue alone");
+}
+
+// --- Foundation readout -----------------------------------------------------------------
+// She may spend money on this, so it gets checked like the rest: the depth ladder has to be
+// monotonic across the Fitzpatrick range, and the undertone has to agree with the profile.
+{
+  console.log("");
+  const LADDER = ["Fair", "Light", "Medium", "Tan", "Deep", "Rich"];
+  let previous = -1;
+  for (const fx of [...ANALYSIS_FIXTURES].sort((a, b) => "I II III IV V VI".indexOf(a.fitzpatrick) - "I II III IV V VI".indexOf(b.fitzpatrick))) {
+    const profile = analyseColouring(fx.colors, fx.fitzpatrick);
+    const guide = foundationGuide(profile, fx.colors.skin_color, fx.fitzpatrick);
+    console.log(`  ${fx.fitzpatrick.padEnd(4)} ${guide.depth.padEnd(7)} ${guide.undertone.padEnd(13)} ${guide.advice}`);
+
+    const rung = LADDER.indexOf(guide.depth);
+    if (rung < 0) fail(`${fx.id}: unknown depth label "${guide.depth}"`);
+    if (rung < previous) fail(`${fx.id}: depth ladder went backwards at Fitzpatrick ${fx.fitzpatrick}`);
+    previous = rung;
+
+    // Olive is its own answer and legitimately crosses warm/neutral, so it is exempt.
+    if (guide.undertone !== "Olive" && !guide.undertone.startsWith(profile.undertone)) {
+      fail(`${fx.id}: foundation undertone "${guide.undertone}" disagrees with profile "${profile.undertone}"`);
+    }
+    // Olive is a mid-depth reading. Fair skin is often low-chroma without being olive, and
+    // labelling it so sends her to a shade range that will not match.
+    if (guide.undertone === "Olive" && (guide.depth === "Fair" || guide.depth === "Rich")) {
+      fail(`${fx.id}: called ${guide.depth} skin olive`);
+    }
+    // Fair-skin vocabulary on deep skin describes shade names that do not exist in that range.
+    if (profile.depth > 0.65 && /pink|blue-based/.test(guide.advice)) {
+      fail(`${fx.id}: deep skin given fair-skin shade vocabulary — "${guide.advice}"`);
+    }
+  }
+
+  // Without a Fitzpatrick result the advice must say so rather than implying the same confidence.
+  const fx = ANALYSIS_FIXTURES[0];
+  const noFitz = foundationGuide(analyseColouring(fx.colors, null), fx.colors.skin_color, null);
+  if (!noFitz.advice.includes("estimated")) fail("no Fitzpatrick: advice does not flag the weaker reading");
 }
 
 console.log(fails === 0 ? "\nALL ENGINE CHECKS PASSED" : `\n${fails} FAILURES`);

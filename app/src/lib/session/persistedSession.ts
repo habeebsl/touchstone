@@ -1,6 +1,6 @@
 import type { FilledLook } from "../colorEngine/template";
 import type { ColourProfile } from "../colorEngine/season";
-import type { FacialColorTonesResult } from "../youcam/types";
+import type { FacialColorTonesResult, FitzpatrickScale } from "../youcam/types";
 
 const KEY = "undertone.session.v1";
 
@@ -15,6 +15,8 @@ export interface PersistedSession {
   fileId: string;
   colors: FacialColorTonesResult["color"];
   profile: ColourProfile;
+  /** Kept so a restored session does not claim the depth was estimated without it. */
+  fitzpatrick: FitzpatrickScale | null;
   looks: Array<{ look: FilledLook; imageUrl: string }>;
   selectedTemplateId: string | null;
 }
@@ -22,7 +24,7 @@ export interface PersistedSession {
 /**
  * Survives a page reload.
  *
- * A completed analysis costs 5 API units against a 1,000-unit budget, so losing it to an
+ * A completed run costs 35 API units against a 1,000-unit budget, so losing it to an
  * accidental refresh — or to mobile Safari discarding the tab under memory pressure, which this
  * app invites with WASM, WebGL and a live camera — is expensive. Only a *finished* analysis is
  * stored: an in-flight one has pending network promises that cannot be resumed.

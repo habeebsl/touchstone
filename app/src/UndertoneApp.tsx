@@ -71,7 +71,7 @@ export default function UndertoneApp() {
   // Outfit step. Held here rather than in the screen because the render pass needs it, and
   // because a reload should not silently drop the outfit a look was built around.
   const [fileId, setFileId] = useState<string | null>(restored?.fileId ?? null);
-  const [fitzpatrick, setFitzpatrick] = useState<FitzpatrickScale | null>(null);
+  const [fitzpatrick, setFitzpatrick] = useState<FitzpatrickScale | null>(restored?.fitzpatrick ?? null);
   const [garmentSwatches, setGarmentSwatches] = useState<GarmentSwatch[] | null>(null);
   const [garmentPreview, setGarmentPreview] = useState<string | null>(null);
   const [garmentBusy, setGarmentBusy] = useState(false);
@@ -204,7 +204,7 @@ export default function UndertoneApp() {
         // Only a finished run is worth persisting: it cost 35 API units, and an in-flight one has
         // pending promises that could not be resumed anyway.
         if (profile) {
-          saveSession({ fileId, colors: measured, profile, looks: rendered, selectedTemplateId: null });
+          saveSession({ fileId, colors: measured, profile, fitzpatrick, looks: rendered, selectedTemplateId: null });
         }
       } catch (err) {
         console.error(err);
@@ -280,9 +280,12 @@ export default function UndertoneApp() {
           onContinue={(keep) => void renderLooks(keep)}
           onSkip={() => void renderLooks()}
         />
-      ) : stage === "looks" ? (
+      ) : stage === "looks" && measured && profile ? (
         <LooksScreen
           looks={looks}
+          colors={measured}
+          profile={profile}
+          fitzpatrick={fitzpatrick}
           onStartOver={reset}
           onSelect={(rendered) => {
             setSelected(rendered);

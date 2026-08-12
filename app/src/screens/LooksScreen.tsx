@@ -1,6 +1,10 @@
 import type { ReactNode } from "react";
 import Swatch, { HexLabel } from "../components/ui/Swatch";
+import ColouringSummary from "../components/ColouringSummary";
 import { TEMPLATE_COUNT, type FilledLook } from "../lib/colorEngine/template";
+import type { ColourProfile } from "../lib/colorEngine/season";
+import type { NormalisedColors } from "../lib/colorEngine/normalise";
+import type { FitzpatrickScale } from "../lib/youcam/types";
 
 export interface RenderedLook {
   look: FilledLook;
@@ -10,6 +14,10 @@ export interface RenderedLook {
 
 interface LooksScreenProps {
   looks: RenderedLook[];
+  /** What the analysis measured and derived, summarised above the looks. */
+  colors: NormalisedColors;
+  profile: ColourProfile;
+  fitzpatrick: FitzpatrickScale | null;
   onSelect: (rendered: RenderedLook) => void;
   /** Discards this analysis and returns to the start. Costs 35 API units to redo — see below. */
   onStartOver: () => void;
@@ -33,7 +41,15 @@ function SwatchPair({ label, color }: { label: string; color: string }) {
  * Screen 4. Mood labels only, one tap target per card, and deliberately no save/share/shopping
  * affordance — the renders are temporary by design and the product has no commerce surface.
  */
-export default function LooksScreen({ looks, onSelect, onStartOver, onImageExpired }: LooksScreenProps) {
+export default function LooksScreen({
+  looks,
+  colors,
+  profile,
+  fitzpatrick,
+  onSelect,
+  onStartOver,
+  onImageExpired,
+}: LooksScreenProps) {
   return (
     <MobileShell>
       <section className="mb-10 mt-12">
@@ -44,6 +60,8 @@ export default function LooksScreen({ looks, onSelect, onStartOver, onImageExpir
           Chosen from {TEMPLATE_COUNT} for your skin, eye and hair colour
         </p>
       </section>
+
+      <ColouringSummary colors={colors} profile={profile} fitzpatrick={fitzpatrick} />
 
       <div className="flex flex-col gap-10 pb-12">
         {looks.map((rendered) => (
