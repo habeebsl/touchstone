@@ -156,7 +156,7 @@ export function compositeRegion(
   maskCanvas: HTMLCanvasElement,
   scratchCanvas: HTMLCanvasElement,
   shadeHex: string,
-  meanHex: string,
+  meanLuminance: number,
   intensity: number,
   w: number,
   h: number,
@@ -167,7 +167,7 @@ export function compositeRegion(
   // highlight, below in shadow.
   scratch.globalCompositeOperation = "source-over";
   scratch.clearRect(0, 0, w, h);
-  scratch.filter = `grayscale(1) brightness(${(1 / Math.max(0.06, luminance(meanHex))).toFixed(4)})`;
+  scratch.filter = `grayscale(1) brightness(${(1 / Math.max(MIN_MEAN_LUMINANCE, meanLuminance)).toFixed(4)})`;
   scratch.drawImage(video, 0, 0, w, h);
   scratch.filter = "none";
 
@@ -186,14 +186,63 @@ export function compositeRegion(
   targetCtx.restore();
 }
 
+/**
+ * Guards the divide. It has to be low enough not to distort a genuinely dark region — at 0.06 a
+ * deep lip in low light was floored, which quietly darkened and desaturated the shade — and high
+ * enough that a near-black frame does not send the brightness factor to infinity.
+ */
+const MIN_MEAN_LUMINANCE = 0.025;
+
 const toRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
 const toHex = (rgb: number[]) =>
   "#" + rgb.map((v) => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, "0")).join("");
 
 /** Rec. 709 luma, matching what the CSS `grayscale` filter computes. */
-function luminance(hex: string): number {
+export function luminance(hex: string): number {
   const [r, g, b] = toRgb(hex);
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * The average luminance of a region *in the live video*.
+ *
+ * This has to be measured rather than taken from the analysis photo, and the difference is not
+ * subtle: the webcam has its own exposure and white balance, and if it runs brighter than the
+ * photo then every pixel's ratio exceeds 1, the shade scales past full and the largest channel
+ * clips. Modelled at +0.4 stops, a brick lip rendered #ff6f35 — pinned at 255, chroma pushed from
+ * 0.146 to 0.189. That is the "everything looks red" that survived three attempts at fixing the
+ * hue arithmetic, because the arithmetic was never the problem.
+ *
+ * Averaged by letting the GPU downscale the masked region to a single pixel, so this costs one
+ * 1x1 read rather than a pass over the frame.
+ */
+export function measureRegionLuminance(
+  video: CanvasImageSource,
+  maskCanvas: HTMLCanvasElement,
+  scratchCanvas: HTMLCanvasElement,
+  meanCanvas: HTMLCanvasElement,
+  w: number,
+  h: number,
+): number | null {
+  const scratch = scratchCanvas.getContext("2d")!;
+  scratch.globalCompositeOperation = "source-over";
+  scratch.clearRect(0, 0, w, h);
+  scratch.drawImage(video, 0, 0, w, h);
+  scratch.globalCompositeOperation = "destination-in";
+  scratch.drawImage(maskCanvas, 0, 0);
+  scratch.globalCompositeOperation = "source-over";
+
+  const mean = meanCanvas.getContext("2d", { willReadFrequently: true })!;
+  mean.clearRect(0, 0, 1, 1);
+  mean.drawImage(scratchCanvas, 0, 0, 1, 1);
+
+  const [r, g, b, a] = mean.getImageData(0, 0, 1, 1).data;
+  // Nothing in the mask — no face, or the region is off-frame.
+  if (a < 8) return null;
+
+  // Un-premultiply: the downscale averaged colour weighted by mask coverage.
+  const scale = 255 / a;
+  return (0.2126 * r * scale + 0.7152 * g * scale + 0.0722 * b * scale) / 255;
 }
 
 /** What a pixel of `backdrop` becomes under the relight — for the checks and for sizing shades. */
@@ -203,7 +252,7 @@ export function predictComposite(
   meanHex: string,
   intensity: number,
 ): string {
-  const ratio = luminance(backdropHex) / Math.max(0.06, luminance(meanHex));
+  const ratio = luminance(backdropHex) / Math.max(MIN_MEAN_LUMINANCE, luminance(meanHex));
   const shade = toRgb(shadeHex);
   const backdrop = toRgb(backdropHex);
   const relit = shade.map((v) => Math.min(1, v * ratio));

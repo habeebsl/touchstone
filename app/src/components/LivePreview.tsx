@@ -4,6 +4,8 @@ import {
   buildLipMask,
   buildBlushMask,
   compositeRegion,
+  luminance,
+  measureRegionLuminance,
   smoothLandmarks,
   type NormalizedLandmark,
 } from "../lib/livePreview/blendOverlay";
@@ -34,6 +36,12 @@ const BLUSH_INTENSITY = 0.4;
 
 const FEATHER = 4;
 
+// The live mean is re-measured periodically rather than every frame: it tracks lighting, which
+// changes far more slowly than the frame rate, and each measurement costs a pixel readback.
+const MEAN_EVERY_N_FRAMES = 6;
+// Eased, so a passing shadow or a single dark frame does not swing the whole region's colour.
+const MEAN_SMOOTHING = 0.25;
+
 /** The product's actual live preview: tap a look, see its lip + blush colors live. No user
  * controls — unlike LipBlendSpike, this renders whatever look was selected upstream. */
 export default function LivePreview({
@@ -49,6 +57,11 @@ export default function LivePreview({
   const lipMaskRef = useRef<HTMLCanvasElement>(document.createElement("canvas"));
   const blushMaskRef = useRef<HTMLCanvasElement>(document.createElement("canvas"));
   const colorScratchRef = useRef<HTMLCanvasElement>(document.createElement("canvas"));
+  // 1x1: the GPU downscale does the averaging, so reading the mean costs one pixel.
+  const meanPixelRef = useRef<HTMLCanvasElement>(document.createElement("canvas"));
+  const lipMeanRef = useRef<number | null>(null);
+  const blushMeanRef = useRef<number | null>(null);
+  const frameRef = useRef(0);
   const landmarkerRef = useRef<FaceLandmarker | null>(null);
   // Previous frame's smoothed landmarks, so the overlay edge stops shimmering between detections.
   const smoothedRef = useRef<NormalizedLandmark[] | null>(null);
@@ -88,6 +101,28 @@ export default function LivePreview({
       loop();
     }
 
+    /**
+     * Keep the region's mean luminance current, falling back to what the analysis measured until
+     * the first live reading lands.
+     */
+    function updateMean(current: number | null, mask: HTMLCanvasElement, fallbackHex: string): number {
+      const canvas = canvasRef.current!;
+      if (current === null || frameRef.current % MEAN_EVERY_N_FRAMES === 0) {
+        const measured = measureRegionLuminance(
+          videoRef.current!,
+          mask,
+          colorScratchRef.current,
+          meanPixelRef.current,
+          canvas.width,
+          canvas.height,
+        );
+        if (measured !== null) {
+          return current === null ? measured : current + (measured - current) * MEAN_SMOOTHING;
+        }
+      }
+      return current ?? luminance(fallbackHex);
+    }
+
     function loop() {
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -108,6 +143,11 @@ export default function LivePreview({
         blushMaskRef.current.height = h;
         colorScratchRef.current.width = w;
         colorScratchRef.current.height = h;
+        meanPixelRef.current.width = 1;
+        meanPixelRef.current.height = 1;
+        // Lighting is measured per frame size; a resize invalidates what was measured before.
+        lipMeanRef.current = null;
+        blushMeanRef.current = null;
       }
 
       const result = landmarker.detectForVideo(video, performance.now());
@@ -115,6 +155,7 @@ export default function LivePreview({
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+      frameRef.current++;
       const detected = result.faceLandmarks[0];
       // Drop the smoothing history when the face leaves frame, or it eases in from wherever the
       // face was last seen when she comes back.
@@ -127,26 +168,28 @@ export default function LivePreview({
         const h = canvas.height;
 
         buildBlushMask(blushMaskRef.current.getContext("2d")!, landmarks, w, h);
+        blushMeanRef.current = updateMean(blushMeanRef.current, blushMaskRef.current, skinColor);
         compositeRegion(
           ctx,
           video,
           blushMaskRef.current,
           colorScratchRef.current,
           blushColor,
-          skinColor,
+          blushMeanRef.current,
           BLUSH_INTENSITY,
           w,
           h,
         );
 
         buildLipMask(lipMaskRef.current.getContext("2d")!, landmarks, w, h, FEATHER);
+        lipMeanRef.current = updateMean(lipMeanRef.current, lipMaskRef.current, lipBaseColor);
         compositeRegion(
           ctx,
           video,
           lipMaskRef.current,
           colorScratchRef.current,
           lipColor,
-          lipBaseColor,
+          lipMeanRef.current,
           LIP_INTENSITY,
           w,
           h,

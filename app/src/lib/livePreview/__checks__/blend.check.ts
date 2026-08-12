@@ -99,6 +99,28 @@ for (const fx of ANALYSIS_FIXTURES) {
     }
   }
 
+  // The webcam is not the analysis photo: it has its own exposure and white balance. The mean is
+  // measured from the live frame precisely so the shade does not blow out when the two disagree,
+  // and this is the check for it — under the old behaviour, where the mean came from the photo,
+  // a region lit half a stop brighter clipped and turned orange-red.
+  for (const look of selectLooks(fx.colors, fx.fitzpatrick)) {
+    const shade = look.lipColor;
+    const { l, c, h } = hexToOklch(fx.colors.lip_color);
+    for (const stops of [-0.4, -0.2, 0.2, 0.4, 0.6]) {
+      const asLit = oklchToHex({ l: Math.max(0.05, Math.min(0.97, l + stops * 0.5)), c, h });
+      // Measured live, the mean *is* the region as the camera sees it.
+      const out = predictComposite(asLit, shade, asLit, 1);
+      const hueGap = Math.abs(((hexToOklch(out).h - hexToOklch(shade).h + 540) % 360) - 180);
+      const chromaRatio = hexToOklch(out).c / Math.max(0.001, hexToOklch(shade).c);
+      if (hueGap > 8 || chromaRatio > 1.25) {
+        fail(
+          `${fx.id}/${look.label}: at ${stops > 0 ? "+" : ""}${stops} stops renders ${out} — ` +
+            `${hueGap.toFixed(0)}° off, chroma x${chromaRatio.toFixed(2)}`,
+        );
+      }
+    }
+  }
+
   console.log(
     `  ${fx.label.padEnd(30)} weakest lip: dE ${worst.visible.toFixed(3)}, texture ${worst.texture.toFixed(3)} (${worst.label})`,
   );
