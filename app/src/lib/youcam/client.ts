@@ -105,7 +105,7 @@ export class YouCamClient {
   private async pollTask<TResult>(
     taskPath: string,
     taskId: string,
-    { intervalMs = 1500, timeoutMs = 60_000 }: { intervalMs?: number; timeoutMs?: number } = {},
+    { intervalMs = 1500, timeoutMs = 120_000 }: { intervalMs?: number; timeoutMs?: number } = {},
   ): Promise<TResult> {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {

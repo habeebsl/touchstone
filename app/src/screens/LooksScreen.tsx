@@ -84,9 +84,14 @@ export default function LooksScreen({
                     hiding its reasoning would leave five arbitrary thumbnails. */}
                 <p className="font-body mt-1 text-sm leading-relaxed text-muted">{rendered.look.why}</p>
               </div>
+              {/* Three, not eight. Most of the palette is deliberately near-invisible — the brow
+                  follows her hair, contour sits a shade under her skin — and showing all of it
+                  would bury the shades she might actually go and buy. The rest is on the look's
+                  own screen, where she is considering one look rather than scanning five. */}
               <div className="flex gap-8">
                 <SwatchPair label="Lip" color={rendered.look.lipColor} />
                 <SwatchPair label="Blush" color={rendered.look.blushColor} />
+                <SwatchPair label="Eye" color={rendered.look.palette.shadowAccent} />
               </div>
             </div>
           </button>

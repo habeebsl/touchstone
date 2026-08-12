@@ -3,7 +3,7 @@
 // roles from the user's seasonal profile, so the same template yields the same mood but
 // different colours per person.
 //
-// There are ten templates and each person is shown five. Rendering all ten would cost ten API
+// There are eleven templates and each person is shown five. Rendering all ten would cost ten API
 // units per analysis and bury the good answer in a long scroll; more importantly, not every
 // structure suits every face. A heavy smokey eye overwhelms low-contrast colouring, and a sheer
 // barely-there wash disappears on high-contrast colouring. So templates carry an `intensity`,
@@ -22,6 +22,7 @@ import type {
   HighlighterEffect,
   LipColorEffect,
   LipColorPalette,
+  LipLinerEffect,
   MakeupEffect,
   SimpleColorEffect,
   SkinSmoothEffect,
@@ -104,10 +105,14 @@ interface LookTemplate {
   brow?: { pattern: string; curvature: number; thickness: number; definition: number; intensity: number };
   contour?: { pattern: string; intensity: number };
   highlighter?: { pattern: string; intensity: number; glow: number };
+  lashes?: { pattern: string; intensity: number };
+  /** `thickness` is required by the API — omitting it is rejected outright. */
+  lipLiner?: { pattern: string; intensity: number; thickness: number; smoothness: number };
 }
 
-// Ten structures, ordered roughly bare -> full. Each differs in *shape*, not just in how much
-// pigment it carries — otherwise "more templates" would just be one template at ten volumes.
+// Eleven structures, ordered roughly bare -> full. Each differs in *shape*, not just in how
+// much pigment it carries — otherwise "more templates" would just be one template at eleven
+// volumes, and she only ever sees five of them anyway.
 const TEMPLATES: LookTemplate[] = [
   {
     id: "bare",
@@ -127,6 +132,7 @@ const TEMPLATES: LookTemplate[] = [
     register: "soft",
     intensity: 0.28,
     note: "your face on a good day",
+    lashes: { pattern: "Natural1", intensity: 62 },
     smooth: 45,
     lip: { texture: "satin", intensity: 58, shape: "original" },
     blush: { pattern: "1color1", intensity: 38 },
@@ -136,12 +142,26 @@ const TEMPLATES: LookTemplate[] = [
     contour: { pattern: "OvalFace6", intensity: 24 },
   },
   {
+    id: "doe",
+    name: "Doe",
+    register: "soft",
+    intensity: 0.22,
+    note: "everything quiet except the lashes",
+    accent: { lipChroma: 0.85 },
+    lashes: { pattern: "Upper&Lower4", intensity: 88 },
+    smooth: 52,
+    lip: { texture: "satin", intensity: 50, shape: "original" },
+    blush: { pattern: "1color1", intensity: 32 },
+    brow: { pattern: "SoftArch1", curvature: 5, thickness: 0, definition: 40, intensity: 42 },
+  },
+  {
     id: "monochrome",
     name: "Monochrome",
     register: "soft",
     intensity: 0.34,
     note: "one colour family across lip, cheek and lid",
     accent: { monochrome: 0.6 },
+    lashes: { pattern: "Natural1", intensity: 60 },
     smooth: 48,
     lip: { texture: "satin", intensity: 62, shape: "original" },
     blush: { pattern: "Round1", intensity: 44 },
@@ -157,6 +177,7 @@ const TEMPLATES: LookTemplate[] = [
     note: "light on the high points, gloss on the lip",
     accent: { lipChroma: 0.9, lipLightness: 0.03 },
     affinity: { Spring: 0.12, Summer: 0.08 },
+    lashes: { pattern: "Wispies1", intensity: 66 },
     smooth: 62,
     lip: { texture: "gloss", intensity: 55, shape: "plump", fullness: 35 },
     blush: { pattern: "Oblique1", intensity: 40 },
@@ -170,6 +191,8 @@ const TEMPLATES: LookTemplate[] = [
     register: "polished",
     intensity: 0.55,
     note: "definition where it counts, nothing shouting",
+    lashes: { pattern: "Upper1", intensity: 72 },
+    lipLiner: { pattern: "Natural1", intensity: 55, thickness: 45, smoothness: 55 },
     smooth: 50,
     lip: { texture: "matte", intensity: 74, shape: "original" },
     blush: { pattern: "Oblique1", intensity: 46 },
@@ -187,6 +210,7 @@ const TEMPLATES: LookTemplate[] = [
     note: "warm bronze through the socket and along the cheekbone",
     accent: { lipHue: 12, shadowHue: 10, shadowChroma: 1.1 },
     affinity: { Autumn: 0.18, Spring: 0.12 },
+    lashes: { pattern: "UpperDense1", intensity: 74 },
     smooth: 50,
     lip: { texture: "satin", intensity: 66, shape: "original" },
     blush: { pattern: "Oblique1", intensity: 50 },
@@ -203,6 +227,7 @@ const TEMPLATES: LookTemplate[] = [
     intensity: 0.66,
     note: "the weight on the eye, lifted and drawn out",
     accent: { lipChroma: 0.82, shadowChroma: 0.85 },
+    lashes: { pattern: "Winged1", intensity: 82 },
     smooth: 48,
     lip: { texture: "satin", intensity: 58, shape: "original" },
     blush: { pattern: "Oblique1", intensity: 38 },
@@ -219,6 +244,7 @@ const TEMPLATES: LookTemplate[] = [
     note: "a hard edge above the lid, kept quiet everywhere else",
     accent: { lipHue: -12, shadowChroma: 1.2 },
     affinity: { Winter: 0.12 },
+    lashes: { pattern: "Upper&Lower1", intensity: 78 },
     smooth: 50,
     lip: { texture: "satin", intensity: 55, shape: "original" },
     blush: { pattern: "Oblique1", intensity: 36 },
@@ -235,6 +261,7 @@ const TEMPLATES: LookTemplate[] = [
     note: "a full smoked eye, lip stepped back to let it lead",
     accent: { lipChroma: 0.68, lipLightness: -0.02 },
     affinity: { Winter: 0.14, Autumn: 0.08 },
+    lashes: { pattern: "UpperDense1", intensity: 85 },
     smooth: 50,
     lip: { texture: "satin", intensity: 52, shape: "original" },
     blush: { pattern: "Oblique1", intensity: 40 },
@@ -251,6 +278,8 @@ const TEMPLATES: LookTemplate[] = [
     note: "everything ceded to the lip",
     accent: { lipChroma: 1.22 },
     affinity: { Winter: 0.14 },
+    lashes: { pattern: "Upper1", intensity: 70 },
+    lipLiner: { pattern: "Large&Full1", intensity: 72, thickness: 62, smoothness: 40 },
     smooth: 50,
     lip: { texture: "matte", intensity: 92, shape: "original" },
     blush: { pattern: "Oblique1", intensity: 44 },
@@ -372,6 +401,12 @@ function buildEffects(
   const contour = pickColour(inputs, "contour", register);
   const highlight = pickColour(inputs, "highlight", register);
 
+  // Lashes are darker than liner and carry almost no colour — mascara is not a shade decision.
+  const lash = shift(liner, { chroma: 0.45, l: -0.06 });
+  // Liner sits a touch deeper than the lipstick it edges, which is how it is actually worn. Same
+  // hue: a liner in a different hue from the lip is the classic 1990s mistake.
+  const lipLiner = shift(lip, { chroma: 1.08, l: -0.05 });
+
   const effects: MakeupEffect[] = [skinSmooth(spec.smooth)];
 
   if (spec.blush) {
@@ -446,6 +481,30 @@ function buildEffects(
     } satisfies HighlighterEffect);
   }
 
+  if (spec.lashes) {
+    effects.push({
+      category: "eyelashes",
+      pattern: { name: spec.lashes.pattern },
+      palettes: [{ color: lash, colorIntensity: spec.lashes.intensity }],
+    } satisfies SimpleColorEffect);
+  }
+
+  if (spec.lipLiner) {
+    effects.push({
+      category: "lip_liner",
+      pattern: { name: spec.lipLiner.pattern },
+      palettes: [
+        {
+          color: lipLiner,
+          texture: "matte",
+          colorIntensity: spec.lipLiner.intensity,
+          thickness: spec.lipLiner.thickness,
+          smoothness: spec.lipLiner.smoothness,
+        },
+      ],
+    } satisfies LipLinerEffect);
+  }
+
   effects.push({
     category: "lip_color",
     shape: { name: spec.lip.shape },
@@ -457,7 +516,10 @@ function buildEffects(
     palettes: [lipPalette(lip, spec.lip.texture, spec.lip.intensity)],
   } satisfies LipColorEffect);
 
-  return { effects, palette: { lip, blush, shadowBase, shadowAccent, liner, brow, contour, highlight } };
+  return {
+    effects,
+    palette: { lip, blush, shadowBase, shadowAccent, liner, brow, contour, highlight, lash, lipLiner },
+  };
 }
 
 // --- Selection -------------------------------------------------------------------------------

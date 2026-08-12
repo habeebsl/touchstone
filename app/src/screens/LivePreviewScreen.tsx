@@ -1,8 +1,24 @@
 import { useState } from "react";
 import BackButton from "../components/ui/BackButton";
 import LivePreview from "../components/LivePreview";
-import Swatch, { HexLabel } from "../components/ui/Swatch";
+import Swatch from "../components/ui/Swatch";
 import type { RenderedLook } from "./LooksScreen";
+
+/**
+ * Every colour the render carries, in the order a face is made up. Anything a template omits is
+ * skipped rather than shown empty — a look without eyeshadow should not list one.
+ */
+const PALETTE_ROWS: Array<{ key: string; label: string }> = [
+  { key: "lip", label: "Lip" },
+  { key: "lipLiner", label: "Lip liner" },
+  { key: "blush", label: "Blush" },
+  { key: "shadowAccent", label: "Eyeshadow" },
+  { key: "liner", label: "Liner" },
+  { key: "lash", label: "Lashes" },
+  { key: "brow", label: "Brow" },
+  { key: "contour", label: "Contour" },
+  { key: "highlight", label: "Highlight" },
+];
 
 interface LivePreviewScreenProps {
   rendered: RenderedLook;
@@ -49,16 +65,19 @@ export default function LivePreviewScreen({ rendered, onBack }: LivePreviewScree
               <h1 className="font-headline mb-4 text-4xl font-medium tracking-tight text-foreground">
                 {look.label}
               </h1>
-              <div className="mb-3 flex items-center gap-6">
-                <div className="flex items-center gap-2">
-                  <Swatch color={look.lipColor} size="sm" />
-                  <HexLabel value={look.lipColor.toUpperCase()} className="text-xs text-muted" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Swatch color={look.blushColor} size="sm" />
-                  <HexLabel value={look.blushColor.toUpperCase()} className="text-xs text-muted" />
-                </div>
-              </div>
+              {/* The whole palette, here rather than on the cards: she is considering one look
+                  now, not scanning five, so the shades she would have to buy are worth the room.
+                  Named by region, since a column of hex codes is a debug view. */}
+              <ul className="mb-3 flex flex-wrap gap-x-5 gap-y-2">
+                {PALETTE_ROWS.map(({ key, label }) =>
+                  look.palette[key] ? (
+                    <li key={key} className="flex items-center gap-2">
+                      <Swatch color={look.palette[key]} size="sm" />
+                      <span className="font-body text-xs text-muted">{label}</span>
+                    </li>
+                  ) : null,
+                )}
+              </ul>
               <p className="font-body text-sm text-muted">Live preview shows lip and blush</p>
             </div>
 

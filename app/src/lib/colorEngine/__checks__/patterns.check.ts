@@ -29,6 +29,8 @@ const CATALOGS: Record<string, string> = {
   contour: "https://plugins-media.makeupar.com/wcm-saas/patterns/contour.json",
   highlighter: "https://plugins-media.makeupar.com/wcm-saas/patterns/highlighter.json",
   lip_color: "https://plugins-media.makeupar.com/wcm-saas/shapes/lipshape.json",
+  eyelashes: "https://plugins-media.makeupar.com/wcm-saas/patterns/eyelashes.json",
+  lip_liner: "https://plugins-media.makeupar.com/wcm-saas/patterns/lipliner.json",
 };
 
 const catalogs = new Map<string, Map<string, CatalogEntry>>();
