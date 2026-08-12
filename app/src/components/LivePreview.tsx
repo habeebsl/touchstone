@@ -2,13 +2,15 @@ import { useEffect, useRef } from "react";
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 import type { TextureLip } from "../lib/youcam/types";
 import {
+  boundsOf,
   buildLipMask,
   buildLipLinerMask,
   buildBlushMask,
-  compositeShine,
   compositeRegion,
   luminance,
   measureRegionLuminance,
+  OUTER_LIPS,
+  recolourLip,
   smoothLandmarks,
   type NormalizedLandmark,
 } from "../lib/livePreview/blendOverlay";
@@ -212,45 +214,25 @@ export default function LivePreview({
 
         buildLipMask(lipMaskRef.current.getContext("2d")!, landmarks, w, h, FEATHER);
         lipMeanRef.current = updateMean(lipMeanRef.current, lipMaskRef.current, lipBaseColor);
-        compositeRegion(
+
+        // Per pixel, and only over the mouth: a blend mode cannot leave the specular alone, and
+        // leaving it alone is the difference between lipstick and a plastic shell.
+        const lipBox = boundsOf(landmarks, OUTER_LIPS, w, h, FEATHER * 2);
+        recolourLip(
           ctx,
-          video,
           lipMaskRef.current,
-          colorScratchRef.current,
+          lipBox,
           lipColor,
           lipMeanRef.current,
           LIP_INTENSITY,
-          w,
-          h,
+          SHINE[finish] ?? 0.16,
         );
 
         // Liner over the lip, since it defines the edge of what is already there.
         if (lipLinerColor) {
           buildLipLinerMask(linerMaskRef.current.getContext("2d")!, landmarks, w, h, LINER_FEATHER);
-          compositeRegion(
-            ctx,
-            video,
-            linerMaskRef.current,
-            colorScratchRef.current,
-            lipLinerColor,
-            lipMeanRef.current,
-            LINER_INTENSITY,
-            w,
-            h,
-          );
+          recolourLip(ctx, linerMaskRef.current, lipBox, lipLinerColor, lipMeanRef.current, LINER_INTENSITY, 0);
         }
-
-        // Shine last: it sits on top of the finished lip, as light does.
-        compositeShine(
-          ctx,
-          video,
-          lipMaskRef.current,
-          colorScratchRef.current,
-          SHINE[finish] ?? 0.16,
-          lipMeanRef.current,
-          w,
-          h,
-        );
       }
 
       rafRef.current = requestAnimationFrame(loop);

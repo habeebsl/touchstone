@@ -9,7 +9,7 @@
  *   npx tsx src/lib/livePreview/__checks__/blend.check.ts
  */
 
-import { predictComposite } from "../blendOverlay";
+import { lipPixel, predictComposite } from "../blendOverlay";
 import { deltaE, hexToOklch, oklchToHex } from "../../colorEngine/oklch";
 import { selectLooks } from "../../colorEngine/template";
 import { ANALYSIS_FIXTURES } from "../../fixtures/analysisFixtures";
@@ -124,6 +124,68 @@ for (const fx of ANALYSIS_FIXTURES) {
   console.log(
     `  ${fx.label.padEnd(30)} weakest lip: dE ${worst.visible.toFixed(3)}, texture ${worst.texture.toFixed(3)} (${worst.label})`,
   );
+}
+
+// --- The lip, per pixel ---------------------------------------------------------------------
+//
+// The property that four attempts with blend modes could not deliver: a lipstick changes the
+// albedo, not the light. Whatever colour is applied, the specular highlight stays the colour of
+// the light source — near-white — and the deep shadow stays dark. Tinting those is what makes a
+// lip read as a plastic shell.
+console.log("");
+{
+  const toRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) * 1);
+  const toHex = (c: number[]) =>
+    "#" + c.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, "0")).join("");
+
+  const apply = (pixelHex: string, shadeHex: string, meanHex: string, gloss: number) => {
+    const [r, g, b] = toRgb(pixelHex);
+    const [sr, sg, sb] = toRgb(shadeHex);
+    const meanLum = (0.2126 * toRgb(meanHex)[0] + 0.7152 * toRgb(meanHex)[1] + 0.0722 * toRgb(meanHex)[2]);
+    const out: [number, number, number] = [0, 0, 0];
+    lipPixel(r, g, b, sr, sg, sb, meanLum, 0.96, gloss, out);
+    return toHex(out);
+  };
+
+  for (const fx of ANALYSIS_FIXTURES) {
+    const mean = fx.colors.lip_color;
+    const { l, c, h } = hexToOklch(mean);
+    // The three parts of a lip: shadow, evenly lit, and the specular catching the light.
+    const shadow = oklchToHex({ l: Math.max(0.04, l * 0.5), c: c * 0.8, h });
+    const specular = oklchToHex({ l: Math.min(0.98, l * 1.75), c: c * 0.25, h });
+
+    for (const look of selectLooks(fx.colors, fx.fitzpatrick)) {
+      const shade = look.lipColor;
+
+      // 1. The lit body of the lip takes the shade.
+      const body = apply(mean, shade, mean, 0);
+      if (deltaE(body, shade) > 0.06) {
+        fail(`${fx.id}/${look.label}: the lit lip renders ${body}, not the shade ${shade}`);
+      }
+
+      // 2. The specular stays the colour of the light. Checked as chroma, since a highlight
+      //    tinted with lipstick is exactly what "plastic" looks like.
+      const lit = apply(specular, shade, mean, 0);
+      if (hexToOklch(lit).c > hexToOklch(specular).c + 0.04) {
+        fail(
+          `${fx.id}/${look.label}: the highlight was tinted (chroma ${hexToOklch(specular).c.toFixed(3)} -> ${hexToOklch(lit).c.toFixed(3)})`,
+        );
+      }
+
+      // 3. The shadow stays a shadow rather than becoming dark lipstick.
+      const dark = apply(shadow, shade, mean, 0);
+      if (hexToOklch(dark).l > hexToOklch(shadow).l + 0.06) {
+        fail(`${fx.id}/${look.label}: the shadow was lifted (${shadow} -> ${dark})`);
+      }
+    }
+
+    const look = selectLooks(fx.colors, fx.fitzpatrick)[2];
+    console.log(
+      `  ${fx.label.padEnd(30)} lit ${apply(mean, look.lipColor, mean, 0)}  ` +
+        `highlight ${apply(specular, look.lipColor, mean, 0)}  shadow ${apply(shadow, look.lipColor, mean, 0)}  ` +
+        `(shade ${look.lipColor})`,
+    );
+  }
 }
 
 console.log(fails === 0 ? "\nBLEND CHECKS PASSED" : `\n${fails} BLEND FAILURES`);

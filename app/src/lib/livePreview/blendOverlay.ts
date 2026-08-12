@@ -270,46 +270,137 @@ export function luminance(hex: string): number {
  * 1x1 read rather than a pass over the frame.
  */
 /**
- * Put the shine back.
+ * Recolour the lip, per pixel, over its bounding box only.
  *
- * The relight keeps the region's luminance structure, but a lipstick has a finish of its own: a
- * gloss carries a hard specular highlight that a matte simply does not. Without it the lip reads
- * as an evenly coloured surface — flat, which is the other half of looking like paint.
+ * Blend modes cannot express what makeup actually does, which is why several attempts with them
+ * looked like paint. Following the physics: a face is albedo, diffuse shading and specular
+ * highlight, and lipstick changes the *albedo*. The specular is the colour of the light, not of
+ * the product — a glossy red lip still has a near-white highlight. Multiplying a shade through
+ * every luminance level, which is what a blend mode does, tints that highlight red and turns the
+ * shadows into dark red, and the result reads as a plastic shell.
  *
- * The highlight is taken from the video rather than drawn: pushing brightness and contrast hard
- * on the region's own luminance isolates the pixels that were already catching the light, so the
- * shine lands where the lip is actually curved toward the source and moves correctly as she does.
+ * So the recolouring is weighted by how mid-tone a pixel is: full strength where the lip is
+ * evenly lit, tapering to nothing in the specular and in the deepest shadow. Those keep the
+ * original pixel, which is what the trade literature means by applying the change in hue while
+ * leaving saturation and brightness alone at the extremes.
+ *
+ * Costs a pass over the lip's bounding box — a few tens of thousands of pixels — rather than the
+ * frame. The mask supplies coverage, so the edge stays as soft as it was drawn.
  */
-export function compositeShine(
-  targetCtx: CanvasRenderingContext2D,
-  video: CanvasImageSource,
+export function recolourLip(
+  ctx: CanvasRenderingContext2D,
   maskCanvas: HTMLCanvasElement,
-  scratchCanvas: HTMLCanvasElement,
-  strength: number,
+  box: { x: number; y: number; width: number; height: number },
+  shadeHex: string,
   meanLuminance: number,
+  intensity: number,
+  gloss: number,
+) {
+  const { x, y, width, height } = box;
+  if (width < 2 || height < 2) return;
+
+  const frame = ctx.getImageData(x, y, width, height);
+  const cover = maskCanvas.getContext("2d")!.getImageData(x, y, width, height);
+  const px = frame.data;
+  const mask = cover.data;
+
+  const [sr, sg, sb] = toRgb(shadeHex).map((v) => v * 255);
+  const mean = Math.max(MIN_MEAN_LUMINANCE, meanLuminance) * 255;
+
+  const out: [number, number, number] = [0, 0, 0];
+  for (let i = 0; i < px.length; i += 4) {
+    const coverage = mask[i + 3] / 255;
+    if (coverage < 0.004) continue;
+
+    lipPixel(px[i], px[i + 1], px[i + 2], sr, sg, sb, mean, intensity * coverage, gloss * coverage, out);
+    px[i] = out[0];
+    px[i + 1] = out[1];
+    px[i + 2] = out[2];
+  }
+
+  ctx.putImageData(frame, x, y);
+}
+
+/**
+ * One pixel of lipstick, written out so the checks can exercise the same arithmetic the renderer
+ * runs rather than a description of it.
+ */
+export function lipPixel(
+  r: number,
+  g: number,
+  b: number,
+  sr: number,
+  sg: number,
+  sb: number,
+  mean: number,
+  alpha: number,
+  gloss: number,
+  out: [number, number, number],
+) {
+  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const ratio = lum / mean;
+
+  // 1 through the mid-tones, falling away into the specular and the deep shadow. Those keep the
+  // original pixel: the highlight is the colour of the light, and the shadow is not lipstick.
+  //
+  // Judged on the ratio *and* on absolute brightness, because on pale lips the ratio alone
+  // under-detects a highlight: when the mean is already bright there is little headroom above it,
+  // so a genuine specular scores barely 1.6 and took a third of the lipstick's colour.
+  const nearWhite = Math.max(0, Math.min(1, (lum / 255 - 0.78) / 0.17));
+  const weight = Math.max(
+    0,
+    Math.min(1, 1 - Math.max(0, (ratio - SPECULAR_FROM) / 0.5) - Math.max(0, (SHADOW_FROM - ratio) / 0.45)) *
+      (1 - nearWhite),
+  );
+
+  const a = alpha * weight;
+  // The albedo, relit by however much light this pixel is receiving.
+  out[0] = r + (Math.min(255, sr * ratio) - r) * a;
+  out[1] = g + (Math.min(255, sg * ratio) - g) * a;
+  out[2] = b + (Math.min(255, sb * ratio) - b) * a;
+
+  // Gloss is added as light, not as colour — white, and only where the lip was already catching
+  // it, so it sits where the surface actually curves toward the source.
+  if (gloss > 0.01 && ratio > SPECULAR_FROM) {
+    const shine = Math.min(1, (ratio - SPECULAR_FROM) / 0.6) * gloss;
+    out[0] += (255 - out[0]) * shine;
+    out[1] += (255 - out[1]) * shine;
+    out[2] += (255 - out[2]) * shine;
+  }
+}
+
+/** Above this multiple of the region's mean, a pixel is specular rather than lit lip. */
+const SPECULAR_FROM = 1.25;
+/** And below this, it is shadow — the corners of the mouth, the line between the lips. */
+const SHADOW_FROM = 0.62;
+
+/** The pixel bounds of a set of landmarks, padded and clamped to the frame. */
+export function boundsOf(
+  landmarks: NormalizedLandmark[],
+  indices: number[],
   w: number,
   h: number,
-) {
-  if (strength <= 0.01) return;
-  const scratch = scratchCanvas.getContext("2d")!;
-
-  scratch.globalCompositeOperation = "source-over";
-  scratch.clearRect(0, 0, w, h);
-  // Threshold by brightness and contrast: everything but the specular falls to black, which
-  // `screen` then ignores.
-  scratch.filter = `grayscale(1) brightness(${(0.85 / Math.max(MIN_MEAN_LUMINANCE, meanLuminance)).toFixed(3)}) contrast(4)`;
-  scratch.drawImage(video, 0, 0, w, h);
-  scratch.filter = "none";
-
-  scratch.globalCompositeOperation = "destination-in";
-  scratch.drawImage(maskCanvas, 0, 0);
-  scratch.globalCompositeOperation = "source-over";
-
-  targetCtx.save();
-  targetCtx.globalAlpha = strength;
-  targetCtx.globalCompositeOperation = "screen";
-  targetCtx.drawImage(scratchCanvas, 0, 0);
-  targetCtx.restore();
+  padding: number,
+): { x: number; y: number; width: number; height: number } {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const i of indices) {
+    const p = toPx(landmarks[i], w, h);
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x);
+    maxY = Math.max(maxY, p.y);
+  }
+  const x = Math.max(0, Math.floor(minX - padding));
+  const y = Math.max(0, Math.floor(minY - padding));
+  return {
+    x,
+    y,
+    width: Math.min(w - x, Math.ceil(maxX - minX + padding * 2)),
+    height: Math.min(h - y, Math.ceil(maxY - minY + padding * 2)),
+  };
 }
 
 export function measureRegionLuminance(
