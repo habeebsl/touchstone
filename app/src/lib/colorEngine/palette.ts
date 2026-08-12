@@ -199,6 +199,15 @@ export function pickColour({ colors, profile }: PaletteInputs, role: Role, regis
   return required === undefined ? result : enforceDistance(result, colors.skin_color, required);
 }
 
+/**
+ * How far a lip shade must sit from her bare lips, per register, in ΔE.
+ *
+ * Sized so the *composited* result clears visibility, not the swatch: the live layer applies the
+ * shade at 0.85, so a guarantee of 0.055 here lands at 0.047 on her face — which is where "I can
+ * barely see it" comes from. These are the on-face figures divided back out.
+ */
+export const MIN_FROM_NATURAL_LIP: Record<Register, number> = { soft: 0.075, polished: 0.11, bold: 0.15 };
+
 /** How far each role must sit from the skin to be seen at all, in ΔE. */
 const MIN_DISTANCE: Partial<Record<Role, number>> = { lip: 0.1, blush: 0.045, eyeshadowAccent: 0.08 };
 
@@ -246,10 +255,17 @@ export function pickLipColour(inputs: PaletteInputs, register: Register): string
   const skinL = hexToOklch(inputs.colors.skin_color).l;
   const lip = hexToOklch(blended);
   const minGap = 0.08 + inputs.profile.depth * 0.02;
-  if (skinL - lip.l < minGap) {
-    const target = skinL - minGap;
-    if (target >= 0.27) return oklchToHex({ ...lip, l: target });
-    return oklchToHex({ ...lip, c: lip.c * 1.4 });
-  }
-  return blended;
+  const separated =
+    skinL - lip.l < minGap
+      ? skinL - minGap >= 0.27
+        ? oklchToHex({ ...lip, l: skinL - minGap })
+        : oklchToHex({ ...lip, c: lip.c * 1.4 })
+      : blended;
+
+  // And a second, different requirement: it must differ from her *own lips*, not just from her
+  // skin. A soft look starts from the measured lip colour, so on someone whose lips already sit
+  // where the season points, the shade can land almost exactly where it started — correct by
+  // construction, and invisible once applied. If she is putting on a lipstick it has to read as
+  // one. How much depends on the register: soft is meant to be subtle, bold is not.
+  return enforceDistance(separated, inputs.colors.lip_color, MIN_FROM_NATURAL_LIP[register]);
 }

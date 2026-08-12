@@ -2,15 +2,15 @@
  * The live layer has to obey the same rule the palette does: a shade must be *visible* on what it
  * sits on, and on deep tones that cannot be achieved by darkening.
  *
- * This exercises the compositing code itself — `predictComposite` is the arithmetic the runtime
- * uses to size its own nudge — rather than a second implementation of it that could drift away
- * from what the canvas actually draws.
+ * Two properties are checked together, because optimising either alone produces a known failure.
+ * Chase visibility and you get flat paint; chase texture and you get an overlay so faint it may
+ * as well not be applied. Both were shipped, in that order, before this check existed.
  *
  *   npx tsx src/lib/livePreview/__checks__/blend.check.ts
  */
 
-import { luminanceShiftFor, predictComposite } from "../blendOverlay";
-import { deltaE, hexToOklch } from "../../colorEngine/oklch";
+import { predictComposite } from "../blendOverlay";
+import { deltaE, hexToOklch, oklchToHex } from "../../colorEngine/oklch";
 import { selectLooks } from "../../colorEngine/template";
 import { ANALYSIS_FIXTURES } from "../../fixtures/analysisFixtures";
 
@@ -24,61 +24,66 @@ const fail = (m: string) => {
 };
 
 // Mirrors LivePreview.tsx.
-const LIP = { intensity: 0.9, cap: 0.35, target: 0.07 };
-const BLUSH = { intensity: 0.5, cap: 0.15, target: 0.03 };
+const LIP_INTENSITY = 0.85;
+const BLUSH_INTENSITY = 0.4;
+
+/**
+ * A real region is not one colour: it has a shadowed side and a specular highlight. Texture
+ * survives compositing only if those stay apart afterwards, so they are modelled explicitly
+ * rather than assumed.
+ */
+function shadeAndHighlight(hex: string) {
+  const { l, c, h } = hexToOklch(hex);
+  return {
+    shadow: oklchToHex({ l: Math.max(0.05, l - 0.1), c, h }),
+    specular: oklchToHex({ l: Math.min(0.98, l + 0.14), c: c * 0.7, h }),
+  };
+}
 
 for (const fx of ANALYSIS_FIXTURES) {
   const skin = fx.colors.skin_color;
-  let worstLip = { label: "", dE: 1 };
+  let worst = { label: "", visible: 1, texture: 1 };
 
   for (const look of selectLooks(fx.colors, fx.fitzpatrick)) {
-    // Each region composites over what is actually beneath it: lipstick over her lips, blush over
-    // her skin. Measuring the lip against skin overstates how far it has to travel.
-    for (const [region, color, backdrop, spec] of [
-      ["lip", look.lipColor, fx.colors.lip_color, LIP],
-      ["blush", look.blushColor, skin, BLUSH],
+    // Each region composites over what is actually beneath it: lipstick over her measured lip
+    // colour, blush over her skin. Sizing a lip against skin overstates how far it has to travel.
+    for (const [region, color, mean, intensity, minVisible, minTexture] of [
+      ["lip", look.lipColor, fx.colors.lip_color, LIP_INTENSITY, 0.05, 0.1],
+      ["blush", look.blushColor, skin, BLUSH_INTENSITY, 0.02, 0.1],
     ] as const) {
-      const backdropL = hexToOklch(backdrop).l;
-      const shift = luminanceShiftFor(color, backdrop, spec);
-      const out = predictComposite(backdrop, color, shift, spec.intensity);
-      const visible = deltaE(out, backdrop);
-      const lightnessShift = hexToOklch(out).l - backdropL;
+      const out = predictComposite(mean, color, mean, intensity);
+      const visible = deltaE(out, mean);
 
-      if (region === "lip" && visible < worstLip.dE) worstLip = { label: look.label, dE: visible };
+      const { shadow, specular } = shadeAndHighlight(mean);
+      const litOut = predictComposite(specular, color, mean, intensity);
+      const shadowOut = predictComposite(shadow, color, mean, intensity);
+      const texture = hexToOklch(litOut).l - hexToOklch(shadowOut).l;
 
-      // 1. It has to be seen. Allowed to fall short of target when the cap binds first — that is
-      //    the cap doing its job — but not to vanish.
-      if (visible < spec.target * 0.6) {
-        fail(
-          `${fx.id}/${look.label}/${region}: effectively invisible (dE ${visible.toFixed(3)}, ${shift.mode} at ${shift.alpha.toFixed(2)})`,
-        );
+      if (region === "lip" && visible < worst.visible) worst = { label: look.label, visible, texture };
+
+      // 1. It has to be seen. This is the failure the `color`-only version shipped with.
+      if (visible < minVisible) {
+        fail(`${fx.id}/${look.label}/${region}: barely visible (dE ${visible.toFixed(3)})`);
       }
 
-      // 2. Blush must not darken deep skin — that is the failure multiply produced before the
-      //    mode was chosen per shade, and a darkened cheek reads as a bruise rather than a flush.
+      // 2. And the region must still look like a surface afterwards. This is the failure the
+      //    flat-colour version shipped with — a uniform shift that erases the highlight.
+      if (texture < minTexture) {
+        fail(`${fx.id}/${look.label}/${region}: flattened (highlight-to-shadow range ${texture.toFixed(3)})`);
+      }
+
+      // 3. Blush must not darken deep skin, which reads as a bruise rather than a flush.
       //    Deliberately not applied to the lip: a lipstick deeper than your own lip colour is
-      //    ordinary at any skin depth, and the first version of this check wrongly flagged five
-      //    perfectly good shades for it.
-      if (region === "blush" && backdropL < 0.45 && lightnessShift < -0.03) {
-        fail(
-          `${fx.id}/${look.label}/blush: darkens deep skin by ${(-lightnessShift).toFixed(3)} — reads as a bruise`,
-        );
-      }
-
-      // 3. Never so strong that it stops being makeup. The point of the colour pass is that the
-      //    underlying luminosity survives; a nudge at full strength would undo it.
-      if (shift.alpha > spec.cap + 0.001) {
-        fail(`${fx.id}/${look.label}/${region}: nudge ${shift.alpha.toFixed(2)} exceeds the cap`);
+      //    ordinary at any skin depth.
+      const lightnessShift = hexToOklch(out).l - hexToOklch(mean).l;
+      if (region === "blush" && hexToOklch(skin).l < 0.45 && lightnessShift < -0.03) {
+        fail(`${fx.id}/${look.label}/blush: darkens deep skin by ${(-lightnessShift).toFixed(3)}`);
       }
     }
   }
 
-  const sample = selectLooks(fx.colors, fx.fitzpatrick)[2];
-  const shift = luminanceShiftFor(sample.lipColor, fx.colors.lip_color, LIP);
-  const out = predictComposite(fx.colors.lip_color, sample.lipColor, shift, LIP.intensity);
   console.log(
-    `  ${fx.label.padEnd(30)} lips ${fx.colors.lip_color} -> ${out}  ${shift.mode.padEnd(8)} +${shift.alpha.toFixed(2)}  ` +
-      `(dE ${deltaE(out, fx.colors.lip_color).toFixed(3)}, weakest look ${worstLip.dE.toFixed(3)})`,
+    `  ${fx.label.padEnd(30)} weakest lip: dE ${worst.visible.toFixed(3)}, texture ${worst.texture.toFixed(3)} (${worst.label})`,
   );
 }
 

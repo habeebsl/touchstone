@@ -4,7 +4,6 @@ import {
   buildLipMask,
   buildBlushMask,
   compositeRegion,
-  luminanceShiftFor,
   smoothLandmarks,
   type NormalizedLandmark,
 } from "../lib/livePreview/blendOverlay";
@@ -28,20 +27,10 @@ const WASM_BASE = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/w
 const MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
 
-// The `color` pass preserves the video's luminosity, so it can run strong without flattening
-// anything — the old 0.75 was low because flat colour at full strength looked painted.
-const LIP_INTENSITY = 0.9;
-const BLUSH_INTENSITY = 0.5;
-
-// Caps on the luminance nudge. The lip may legitimately deepen; blush must stay a flush, so it
-// is allowed far less.
-const LIP_LUMINANCE_CAP = 0.35;
-const BLUSH_LUMINANCE_CAP = 0.15;
-
-// The change each region has to achieve to read as makeup at all, in perceptual distance from
-// what is underneath it. Below this the recolour is technically applied and effectively invisible.
-const LIP_TARGET_CHANGE = 0.07;
-const BLUSH_TARGET_CHANGE = 0.03;
+// Relighting preserves the region's own variation, so it can run strong without flattening it.
+// The lip is a deliberate, opaque thing; blush is a flush and stays low.
+const LIP_INTENSITY = 0.85;
+const BLUSH_INTENSITY = 0.4;
 
 const FEATHER = 4;
 
@@ -61,17 +50,6 @@ export default function LivePreview({
   const blushMaskRef = useRef<HTMLCanvasElement>(document.createElement("canvas"));
   const colorScratchRef = useRef<HTMLCanvasElement>(document.createElement("canvas"));
   const landmarkerRef = useRef<FaceLandmarker | null>(null);
-  // Solved once per look rather than per frame: what is underneath does not change.
-  const lipShift = luminanceShiftFor(lipColor, lipBaseColor, {
-    cap: LIP_LUMINANCE_CAP,
-    target: LIP_TARGET_CHANGE,
-    intensity: LIP_INTENSITY,
-  });
-  const blushShift = luminanceShiftFor(blushColor, skinColor, {
-    cap: BLUSH_LUMINANCE_CAP,
-    target: BLUSH_TARGET_CHANGE,
-    intensity: BLUSH_INTENSITY,
-  });
   // Previous frame's smoothed landmarks, so the overlay edge stops shimmering between detections.
   const smoothedRef = useRef<NormalizedLandmark[] | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -151,10 +129,11 @@ export default function LivePreview({
         buildBlushMask(blushMaskRef.current.getContext("2d")!, landmarks, w, h);
         compositeRegion(
           ctx,
+          video,
           blushMaskRef.current,
           colorScratchRef.current,
           blushColor,
-          blushShift,
+          skinColor,
           BLUSH_INTENSITY,
           w,
           h,
@@ -163,10 +142,11 @@ export default function LivePreview({
         buildLipMask(lipMaskRef.current.getContext("2d")!, landmarks, w, h, FEATHER);
         compositeRegion(
           ctx,
+          video,
           lipMaskRef.current,
           colorScratchRef.current,
           lipColor,
-          lipShift,
+          lipBaseColor,
           LIP_INTENSITY,
           w,
           h,

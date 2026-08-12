@@ -30,7 +30,14 @@ import type {
 } from "../youcam/types";
 import { analyseColouring, type ColourProfile, type Season } from "./season";
 import type { NormalisedColors } from "./normalise";
-import { enforceDistance, MIN_DISTANCE_FOR, pickColour, pickLipColour, type Register } from "./palette";
+import {
+  enforceDistance,
+  MIN_DISTANCE_FOR,
+  MIN_FROM_NATURAL_LIP,
+  pickColour,
+  pickLipColour,
+  type Register,
+} from "./palette";
 import { hexToOklch, mixOklch, oklchToHex } from "./oklch";
 import { clashesWith, intensityShift, type GarmentInfluence } from "../garment/influence";
 
@@ -74,6 +81,12 @@ interface ColourAccent {
 }
 
 const MAX_HUE_SHIFT = 16;
+
+/**
+ * The floor no lip shade may go under, whatever its accent says. Set from the other end: the live
+ * layer applies at 0.85, and below about 0.05 on the face the lipstick is not visible at all.
+ */
+const MIN_VISIBLE_LIP = 0.06;
 
 interface LookTemplate {
   id: string;
@@ -359,7 +372,23 @@ function buildEffects(
     lipBase = shift(lipBase, { chroma: 0.7 });
   }
 
-  const lip = enforceDistance(lipBase, inputs.colors.skin_color, MIN_DISTANCE_FOR.lip!);
+  // Both guards again, because the accent runs after the engine applied them: a look that lowers
+  // lip chroma pulls the shade back toward her natural lips, which is how the softest looks ended
+  // up applying a lipstick you could not see.
+  //
+  // Scaled by the accent, though, and floored rather than fixed. Enforcing the register's full
+  // requirement after the accent pushed two looks onto the same clamped value — the guard undoing
+  // exactly the difference the accent exists to create. A look that steps its lip back is allowed
+  // to sit closer to her natural colour, just never so close that it vanishes.
+  const naturalLipGap = Math.max(
+    MIN_VISIBLE_LIP,
+    MIN_FROM_NATURAL_LIP[register] * (accent.lipChroma ?? 1),
+  );
+  const lip = enforceDistance(
+    enforceDistance(lipBase, inputs.colors.skin_color, MIN_DISTANCE_FOR.lip!),
+    inputs.colors.lip_color,
+    naturalLipGap,
+  );
 
   let blush = pickColour(inputs, "blush", register);
   const shadowBase = pickColour(inputs, "eyeshadowBase", register);
