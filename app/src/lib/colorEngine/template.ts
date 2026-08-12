@@ -31,6 +31,7 @@ import { analyseColouring, type ColourProfile, type Season } from "./season";
 import type { NormalisedColors } from "./normalise";
 import { enforceDistance, MIN_DISTANCE_FOR, pickColour, pickLipColour, type Register } from "./palette";
 import { hexToOklch, mixOklch, oklchToHex } from "./oklch";
+import { clashesWith, intensityShift, type GarmentInfluence } from "../garment/influence";
 
 export interface FilledLook {
   templateId: string;
@@ -307,23 +308,29 @@ function shift(hex: string, { h = 0, chroma = 1, l = 0 }: { h?: number; chroma?:
 
 function buildEffects(
   spec: LookTemplate,
-  inputs: { colors: Measured; profile: ColourProfile },
+  inputs: { colors: Measured; profile: ColourProfile; garment?: GarmentInfluence },
 ): { effects: MakeupEffect[]; palette: Record<string, string> } {
   const { register } = spec;
   const accent = spec.accent ?? {};
+  const garment = inputs.garment;
 
   // The accent is applied to the picked colour, then the visibility guard runs again: a shift
   // that lowers chroma or lifts lightness can push a colour back under the threshold where it
   // disappears into the skin, which is exactly what the softer accents do on deep colouring.
-  const lip = enforceDistance(
-    shift(pickLipColour(inputs, register), {
-      h: accent.lipHue,
-      chroma: accent.lipChroma,
-      l: accent.lipLightness,
-    }),
-    inputs.colors.skin_color,
-    MIN_DISTANCE_FOR.lip!,
-  );
+  let lipBase = shift(pickLipColour(inputs, register), {
+    h: accent.lipHue,
+    chroma: accent.lipChroma,
+    l: accent.lipLightness,
+  });
+
+  // Near-miss against a loud outfit is the most visible failure available to us — a warm coral
+  // against a blue-based red reads as a mistake rather than as coordination. The fix is to stop
+  // competing rather than to chase a match, since matching the dress is not the lip's job.
+  if (garment && clashesWith(hexToOklch(lipBase).h, garment)) {
+    lipBase = shift(lipBase, { chroma: 0.7 });
+  }
+
+  const lip = enforceDistance(lipBase, inputs.colors.skin_color, MIN_DISTANCE_FOR.lip!);
 
   let blush = pickColour(inputs, "blush", register);
   const shadowBase = pickColour(inputs, "eyeshadowBase", register);
@@ -331,6 +338,22 @@ function buildEffects(
     h: accent.shadowHue,
     chroma: accent.shadowChroma,
   });
+
+  // The eye is where an outfit is allowed to show up — but *how* depends on how far the garment
+  // sits from her palette, and the trade advice is clearer than "match the hue". For a cool
+  // outfit it prescribes taupe, grey and silver: a neutral eye, not a blue one.
+  //
+  // So a garment hue within reach harmonises — the accent leans toward it, still clamped inside
+  // her palette. A distant one mutes the accent instead, which is what lets the outfit lead. The
+  // earlier version rotated the hue in both cases and produced nothing: past the clamp, every
+  // distant hue lands on the same boundary, so a red dress and a blue one gave identical eyes.
+  if (garment?.hue != null) {
+    const towardGarment = ((garment.hue - hexToOklch(shadowAccent).h + 540) % 360) - 180;
+    shadowAccent =
+      Math.abs(towardGarment) <= 45
+        ? shift(shadowAccent, { h: towardGarment * 0.45 })
+        : shift(shadowAccent, { chroma: 1 - Math.min(0.45, garment.loudness * 0.45) });
+  }
 
   // A monochrome look is one colour worn three ways, so cheek and lid are pulled toward the lip
   // rather than picked independently. Partial, not total: identical hexes on lip and lid read as
@@ -451,8 +474,9 @@ function preferredIntensity(profile: ColourProfile): number {
   return 0.3 + profile.contrast * 0.42 + profile.depth * 0.12;
 }
 
-function scoreTemplate(spec: LookTemplate, profile: ColourProfile): number {
-  const distance = Math.abs(spec.intensity - preferredIntensity(profile));
+function scoreTemplate(spec: LookTemplate, profile: ColourProfile, garment?: GarmentInfluence): number {
+  const wanted = preferredIntensity(profile) + (garment ? intensityShift(garment) : 0);
+  const distance = Math.abs(spec.intensity - wanted);
   const affinity = spec.affinity?.[profile.season] ?? 0;
   return 1 - distance + affinity;
 }
@@ -465,8 +489,8 @@ function scoreTemplate(spec: LookTemplate, profile: ColourProfile): number {
  * spans bare to bold, so there is always something to choose *between*, and the fit still
  * decides which bare and which bold.
  */
-function selectTemplates(profile: ColourProfile, count: number): LookTemplate[] {
-  const ranked = [...TEMPLATES].sort((a, b) => scoreTemplate(b, profile) - scoreTemplate(a, profile));
+function selectTemplates(profile: ColourProfile, count: number, garment?: GarmentInfluence): LookTemplate[] {
+  const ranked = [...TEMPLATES].sort((a, b) => scoreTemplate(b, profile, garment) - scoreTemplate(a, profile, garment));
 
   const chosen: LookTemplate[] = [];
   for (const register of ["soft", "polished", "bold"] as const) {
@@ -483,25 +507,36 @@ function selectTemplates(profile: ColourProfile, count: number): LookTemplate[] 
   return chosen.slice(0, count).sort((a, b) => a.intensity - b.intensity);
 }
 
-function explain(spec: LookTemplate, profile: ColourProfile): string {
-  const fit = spec.affinity?.[profile.season]
-    ? `suits ${profile.season} colouring`
-    : profile.contrast > 0.6
-      ? "your contrast carries it"
-      : profile.contrast < 0.35
-        ? "kept soft, like your colouring"
-        : `built around your ${profile.undertone.toLowerCase()} undertone`;
+function explain(spec: LookTemplate, profile: ColourProfile, garment?: GarmentInfluence): string {
+  // The outfit's influence is deliberately subtle in the colours, so it is stated plainly here
+  // instead. A visible reason reads as judgement; a big colour shift would just read as a filter.
+  const fit = garment && !garment.neutral && garment.loudness > 0.5
+    ? "stepped back, so your outfit leads"
+    : garment?.neutral
+      ? "your outfit is quiet, so this can speak up"
+      : garment && garment.hue !== null
+        ? "the eye picks up your outfit"
+        : spec.affinity?.[profile.season]
+          ? `suits ${profile.season} colouring`
+          : profile.contrast > 0.6
+            ? "your contrast carries it"
+            : profile.contrast < 0.35
+              ? "kept soft, like your colouring"
+              : `built around your ${profile.undertone.toLowerCase()} undertone`;
   return `${spec.note[0].toUpperCase()}${spec.note.slice(1)} — ${fit}.`;
 }
 
 // --- Entry points ----------------------------------------------------------------------------
 
-function fill(spec: LookTemplate, inputs: { colors: Measured; profile: ColourProfile }): FilledLook {
+function fill(
+  spec: LookTemplate,
+  inputs: { colors: Measured; profile: ColourProfile; garment?: GarmentInfluence },
+): FilledLook {
   const { effects, palette } = buildEffects(spec, inputs);
   return {
     templateId: spec.id,
     label: spec.name,
-    why: explain(spec, inputs.profile),
+    why: explain(spec, inputs.profile, inputs.garment),
     register: spec.register,
     lipColor: palette.lip,
     blushColor: palette.blush,
@@ -510,14 +545,18 @@ function fill(spec: LookTemplate, inputs: { colors: Measured; profile: ColourPro
   };
 }
 
-/** The looks actually shown to one person: the templates that suit them, filled with their colours. */
+/**
+ * The looks actually shown to one person: the templates that suit them, filled with their
+ * colours, and — when she told us what she is wearing — coordinated with the outfit.
+ */
 export function selectLooks(
   colors: Measured,
   fitzpatrick: FitzpatrickScale | null = null,
   count = 5,
+  garment?: GarmentInfluence,
 ): FilledLook[] {
   const profile = analyseColouring(colors, fitzpatrick);
-  return selectTemplates(profile, count).map((spec) => fill(spec, { colors, profile }));
+  return selectTemplates(profile, count, garment).map((spec) => fill(spec, { colors, profile, garment }));
 }
 
 /** Every template, filled. For the engine lab and the API probes — not the user-facing path. */
