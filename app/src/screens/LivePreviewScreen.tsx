@@ -30,6 +30,8 @@ export default function LivePreviewScreen({ rendered, skinColor, lipBaseColor, o
         <LivePreview
           lipColor={look.lipColor}
           blushColor={look.blushColor}
+          lipLinerColor={look.palette.lipLiner}
+          finish={look.finish}
           skinColor={skinColor}
           lipBaseColor={lipBaseColor}
           onStatusChange={setStatus}

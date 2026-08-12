@@ -203,8 +203,9 @@ export function pickColour({ colors, profile }: PaletteInputs, role: Role, regis
  * How far a lip shade must sit from her bare lips, per register, in ΔE.
  *
  * Sized so the *composited* result clears visibility, not the swatch: the live layer applies the
- * shade at 0.85, so a guarantee of 0.055 here lands at 0.047 on her face — which is where "I can
- * barely see it" comes from. These are the on-face figures divided back out.
+ * shade at near-full opacity, so these are close to the on-face figures. An earlier version was
+ * sized against the swatch and landed at 0.047 on the face, which is where "I can barely see it"
+ * came from.
  */
 export const MIN_FROM_NATURAL_LIP: Record<Register, number> = { soft: 0.075, polished: 0.11, bold: 0.15 };
 

@@ -48,6 +48,8 @@ export interface FilledLook {
   /** One line on why this look was chosen for this person. */
   why: string;
   register: Register;
+  /** The lip's finish, so the live layer can render a gloss as a gloss and a matte as a matte. */
+  finish: TextureLip;
   /** The two regions the live preview layer can render. */
   lipColor: string;
   blushColor: string;
@@ -645,6 +647,7 @@ function fill(
     label: spec.name,
     why: explain(spec, inputs.profile, inputs.garment),
     register: spec.register,
+    finish: spec.lip.texture,
     lipColor: live.lip,
     blushColor: live.blush,
     palette,

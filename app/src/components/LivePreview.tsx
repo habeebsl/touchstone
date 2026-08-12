@@ -1,8 +1,11 @@
 import { useEffect, useRef } from "react";
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
+import type { TextureLip } from "../lib/youcam/types";
 import {
   buildLipMask,
+  buildLipLinerMask,
   buildBlushMask,
+  compositeShine,
   compositeRegion,
   luminance,
   measureRegionLuminance,
@@ -13,6 +16,10 @@ import {
 interface LivePreviewProps {
   lipColor: string;
   blushColor: string;
+  /** Drawn just inside the lip line. Absent for looks that apply no liner. */
+  lipLinerColor?: string;
+  /** How much the lip shines: a gloss carries a hard specular, a matte carries none. */
+  finish: TextureLip;
   /**
    * What each shade is going *over*: her measured lip colour for the lip, her skin for the
    * cheek. Compositing both against skin was wrong — lips are already deeper and more saturated
@@ -30,11 +37,28 @@ const MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
 
 // Relighting preserves the region's own variation, so it can run strong without flattening it.
-// The lip is a deliberate, opaque thing; blush is a flush and stays low.
-const LIP_INTENSITY = 0.85;
+// Lipstick is opaque and deliberate — leaving 15% of the bare lip showing through was reading as
+// a wash rather than a shade. Blush is a flush and stays low.
+const LIP_INTENSITY = 0.96;
+const LINER_INTENSITY = 0.75;
 const BLUSH_INTENSITY = 0.4;
 
-const FEATHER = 4;
+// How much specular each finish carries. Matte is genuinely zero: killing the shine is what
+// makes a matte look matte.
+const SHINE: Record<string, number> = {
+  matte: 0,
+  satin: 0.16,
+  sheer: 0.2,
+  gloss: 0.42,
+  shimmer: 0.36,
+  metallic: 0.4,
+  holographic: 0.44,
+};
+
+// A tighter edge now that the contour is a curve rather than a polygon — the old blur existed to
+// hide the straight segments between landmarks.
+const FEATHER = 2;
+const LINER_FEATHER = 3;
 
 // The live mean is re-measured periodically rather than every frame: it tracks lighting, which
 // changes far more slowly than the frame rate, and each measurement costs a pixel readback.
@@ -47,6 +71,8 @@ const MEAN_SMOOTHING = 0.25;
 export default function LivePreview({
   lipColor,
   blushColor,
+  lipLinerColor,
+  finish,
   skinColor,
   lipBaseColor,
   className = "",
@@ -59,6 +85,7 @@ export default function LivePreview({
   const colorScratchRef = useRef<HTMLCanvasElement>(document.createElement("canvas"));
   // 1x1: the GPU downscale does the averaging, so reading the mean costs one pixel.
   const meanPixelRef = useRef<HTMLCanvasElement>(document.createElement("canvas"));
+  const linerMaskRef = useRef<HTMLCanvasElement>(document.createElement("canvas"));
   const lipMeanRef = useRef<number | null>(null);
   const blushMeanRef = useRef<number | null>(null);
   const frameRef = useRef(0);
@@ -141,6 +168,8 @@ export default function LivePreview({
         lipMaskRef.current.height = h;
         blushMaskRef.current.width = w;
         blushMaskRef.current.height = h;
+        linerMaskRef.current.width = w;
+        linerMaskRef.current.height = h;
         colorScratchRef.current.width = w;
         colorScratchRef.current.height = h;
         meanPixelRef.current.width = 1;
@@ -191,6 +220,34 @@ export default function LivePreview({
           lipColor,
           lipMeanRef.current,
           LIP_INTENSITY,
+          w,
+          h,
+        );
+
+        // Liner over the lip, since it defines the edge of what is already there.
+        if (lipLinerColor) {
+          buildLipLinerMask(linerMaskRef.current.getContext("2d")!, landmarks, w, h, LINER_FEATHER);
+          compositeRegion(
+            ctx,
+            video,
+            linerMaskRef.current,
+            colorScratchRef.current,
+            lipLinerColor,
+            lipMeanRef.current,
+            LINER_INTENSITY,
+            w,
+            h,
+          );
+        }
+
+        // Shine last: it sits on top of the finished lip, as light does.
+        compositeShine(
+          ctx,
+          video,
+          lipMaskRef.current,
+          colorScratchRef.current,
+          SHINE[finish] ?? 0.16,
+          lipMeanRef.current,
           w,
           h,
         );

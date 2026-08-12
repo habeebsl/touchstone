@@ -52,6 +52,41 @@ export function smoothLandmarks(
   }));
 }
 
+/**
+ * Trace a closed loop through the points as a curve rather than a polygon.
+ *
+ * Lips are not made of straight lines, and a 20-point polygon between landmarks loses exactly the
+ * parts that make a mouth recognisable: the cupid's bow, the taper into the corners, the curve of
+ * the lower lip. Catmull-Rom through the landmarks, converted to the cubics canvas draws, puts
+ * them back — this is most of the difference between "a shape filled with colour" and a lip.
+ */
+function traceSmoothLoop(ctx: CanvasRenderingContext2D, points: Array<{ x: number; y: number }>) {
+  const n = points.length;
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 0; i < n; i++) {
+    const p0 = points[(i - 1 + n) % n];
+    const p1 = points[i];
+    const p2 = points[(i + 1) % n];
+    const p3 = points[(i + 2) % n];
+    ctx.bezierCurveTo(
+      p1.x + (p2.x - p0.x) / 6,
+      p1.y + (p2.y - p0.y) / 6,
+      p2.x - (p3.x - p1.x) / 6,
+      p2.y - (p3.y - p1.y) / 6,
+      p2.x,
+      p2.y,
+    );
+  }
+  ctx.closePath();
+}
+
+/** Pull a ring of points toward its own centre, for the inset used to make a liner band. */
+function inset(points: Array<{ x: number; y: number }>, amount: number) {
+  const cx = points.reduce((sum, p) => sum + p.x, 0) / points.length;
+  const cy = points.reduce((sum, p) => sum + p.y, 0) / points.length;
+  return points.map((p) => ({ x: p.x + (cx - p.x) * amount, y: p.y + (cy - p.y) * amount }));
+}
+
 export function buildLipMask(
   maskCtx: CanvasRenderingContext2D,
   landmarks: NormalizedLandmark[],
@@ -59,26 +94,44 @@ export function buildLipMask(
   h: number,
   feather: number,
 ) {
+  const outer = OUTER_LIPS.slice(0, -1).map((i) => toPx(landmarks[i], w, h));
+  const inner = INNER_LIPS.slice(0, -1).map((i) => toPx(landmarks[i], w, h));
+
   maskCtx.clearRect(0, 0, w, h);
   maskCtx.filter = feather > 0 ? `blur(${feather}px)` : "none";
   maskCtx.fillStyle = "white";
 
   maskCtx.beginPath();
-  for (const [i, idx] of OUTER_LIPS.entries()) {
-    const { x, y } = toPx(landmarks[idx], w, h);
-    if (i === 0) maskCtx.moveTo(x, y);
-    else maskCtx.lineTo(x, y);
-  }
-  maskCtx.closePath();
+  traceSmoothLoop(maskCtx, outer);
+  // Second subpath, so the even-odd rule leaves the mouth opening unpainted — otherwise an open
+  // mouth is painted across the teeth and tongue.
+  traceSmoothLoop(maskCtx, inner);
+  maskCtx.fill("evenodd");
+  maskCtx.filter = "none";
+}
 
-  // Second subpath, wound as a hole: with the even-odd rule the mouth opening is left unpainted.
-  for (const [i, idx] of INNER_LIPS.entries()) {
-    const { x, y } = toPx(landmarks[idx], w, h);
-    if (i === 0) maskCtx.moveTo(x, y);
-    else maskCtx.lineTo(x, y);
-  }
-  maskCtx.closePath();
+/**
+ * A band just inside the lip line, where liner is actually worn.
+ *
+ * Defining the edge is most of what separates a lip that looks made up from one that looks
+ * washed with colour, and it is the detail whose absence reads as "paint" — a real lip is darker
+ * at its border and the shape is deliberate there.
+ */
+export function buildLipLinerMask(
+  maskCtx: CanvasRenderingContext2D,
+  landmarks: NormalizedLandmark[],
+  w: number,
+  h: number,
+  feather: number,
+) {
+  const outer = OUTER_LIPS.slice(0, -1).map((i) => toPx(landmarks[i], w, h));
 
+  maskCtx.clearRect(0, 0, w, h);
+  maskCtx.filter = feather > 0 ? `blur(${feather}px)` : "none";
+  maskCtx.fillStyle = "white";
+  maskCtx.beginPath();
+  traceSmoothLoop(maskCtx, outer);
+  traceSmoothLoop(maskCtx, inset(outer, 0.12));
   maskCtx.fill("evenodd");
   maskCtx.filter = "none";
 }
@@ -216,6 +269,49 @@ export function luminance(hex: string): number {
  * Averaged by letting the GPU downscale the masked region to a single pixel, so this costs one
  * 1x1 read rather than a pass over the frame.
  */
+/**
+ * Put the shine back.
+ *
+ * The relight keeps the region's luminance structure, but a lipstick has a finish of its own: a
+ * gloss carries a hard specular highlight that a matte simply does not. Without it the lip reads
+ * as an evenly coloured surface — flat, which is the other half of looking like paint.
+ *
+ * The highlight is taken from the video rather than drawn: pushing brightness and contrast hard
+ * on the region's own luminance isolates the pixels that were already catching the light, so the
+ * shine lands where the lip is actually curved toward the source and moves correctly as she does.
+ */
+export function compositeShine(
+  targetCtx: CanvasRenderingContext2D,
+  video: CanvasImageSource,
+  maskCanvas: HTMLCanvasElement,
+  scratchCanvas: HTMLCanvasElement,
+  strength: number,
+  meanLuminance: number,
+  w: number,
+  h: number,
+) {
+  if (strength <= 0.01) return;
+  const scratch = scratchCanvas.getContext("2d")!;
+
+  scratch.globalCompositeOperation = "source-over";
+  scratch.clearRect(0, 0, w, h);
+  // Threshold by brightness and contrast: everything but the specular falls to black, which
+  // `screen` then ignores.
+  scratch.filter = `grayscale(1) brightness(${(0.85 / Math.max(MIN_MEAN_LUMINANCE, meanLuminance)).toFixed(3)}) contrast(4)`;
+  scratch.drawImage(video, 0, 0, w, h);
+  scratch.filter = "none";
+
+  scratch.globalCompositeOperation = "destination-in";
+  scratch.drawImage(maskCanvas, 0, 0);
+  scratch.globalCompositeOperation = "source-over";
+
+  targetCtx.save();
+  targetCtx.globalAlpha = strength;
+  targetCtx.globalCompositeOperation = "screen";
+  targetCtx.drawImage(scratchCanvas, 0, 0);
+  targetCtx.restore();
+}
+
 export function measureRegionLuminance(
   video: CanvasImageSource,
   maskCanvas: HTMLCanvasElement,

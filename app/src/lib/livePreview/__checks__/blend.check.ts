@@ -24,7 +24,7 @@ const fail = (m: string) => {
 };
 
 // Mirrors LivePreview.tsx.
-const LIP_INTENSITY = 0.85;
+const LIP_INTENSITY = 0.96;
 const BLUSH_INTENSITY = 0.4;
 
 /**
