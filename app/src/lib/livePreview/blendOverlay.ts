@@ -269,6 +269,13 @@ export function luminance(hex: string): number {
  * Averaged by letting the GPU downscale the masked region to a single pixel, so this costs one
  * 1x1 read rather than a pass over the frame.
  */
+export interface LipLayer {
+  maskCanvas: HTMLCanvasElement;
+  shadeHex: string;
+  intensity: number;
+  gloss: number;
+}
+
 /**
  * Recolour the lip, per pixel, over its bounding box only.
  *
@@ -284,41 +291,55 @@ export function luminance(hex: string): number {
  * original pixel, which is what the trade literature means by applying the change in hue while
  * leaving saturation and brightness alone at the extremes.
  *
- * Costs a pass over the lip's bounding box — a few tens of thousands of pixels — rather than the
- * frame. The mask supplies coverage, so the edge stays as soft as it was drawn.
+ * The pixels come from the video into a small CPU-side buffer rather than being read back off the
+ * display canvas. Reading a GPU-backed canvas stalls the pipeline hard enough to drop frames, and
+ * doing it twice a frame — once for the lip, once for the liner — made the mouth appear in pieces
+ * as the compositing fell behind. All the layers are applied in one pass over one buffer instead.
  */
 export function recolourLip(
-  ctx: CanvasRenderingContext2D,
-  maskCanvas: HTMLCanvasElement,
+  targetCtx: CanvasRenderingContext2D,
+  video: CanvasImageSource,
+  roiCanvas: HTMLCanvasElement,
   box: { x: number; y: number; width: number; height: number },
-  shadeHex: string,
+  layers: LipLayer[],
   meanLuminance: number,
-  intensity: number,
-  gloss: number,
 ) {
   const { x, y, width, height } = box;
-  if (width < 2 || height < 2) return;
+  if (width < 2 || height < 2 || layers.length === 0) return;
 
-  const frame = ctx.getImageData(x, y, width, height);
-  const cover = maskCanvas.getContext("2d")!.getImageData(x, y, width, height);
-  const px = frame.data;
-  const mask = cover.data;
-
-  const [sr, sg, sb] = toRgb(shadeHex).map((v) => v * 255);
-  const mean = Math.max(MIN_MEAN_LUMINANCE, meanLuminance) * 255;
-
-  const out: [number, number, number] = [0, 0, 0];
-  for (let i = 0; i < px.length; i += 4) {
-    const coverage = mask[i + 3] / 255;
-    if (coverage < 0.004) continue;
-
-    lipPixel(px[i], px[i + 1], px[i + 2], sr, sg, sb, mean, intensity * coverage, gloss * coverage, out);
-    px[i] = out[0];
-    px[i + 1] = out[1];
-    px[i + 2] = out[2];
+  if (roiCanvas.width !== width || roiCanvas.height !== height) {
+    roiCanvas.width = width;
+    roiCanvas.height = height;
   }
 
-  ctx.putImageData(frame, x, y);
+  const roi = roiCanvas.getContext("2d", { willReadFrequently: true })!;
+  roi.clearRect(0, 0, width, height);
+  roi.drawImage(video, x, y, width, height, 0, 0, width, height);
+
+  const frame = roi.getImageData(0, 0, width, height);
+  const px = frame.data;
+  const mean = Math.max(MIN_MEAN_LUMINANCE, meanLuminance) * 255;
+  const out: [number, number, number] = [0, 0, 0];
+
+  for (const layer of layers) {
+    const mask = layer.maskCanvas
+      .getContext("2d", { willReadFrequently: true })!
+      .getImageData(x, y, width, height).data;
+    const [sr, sg, sb] = toRgb(layer.shadeHex).map((v) => v * 255);
+
+    for (let i = 0; i < px.length; i += 4) {
+      const coverage = mask[i + 3] / 255;
+      if (coverage < 0.004) continue;
+
+      lipPixel(px[i], px[i + 1], px[i + 2], sr, sg, sb, mean, layer.intensity * coverage, layer.gloss * coverage, out);
+      px[i] = out[0];
+      px[i + 1] = out[1];
+      px[i + 2] = out[2];
+    }
+  }
+
+  roi.putImageData(frame, 0, 0);
+  targetCtx.drawImage(roiCanvas, x, y);
 }
 
 /**

@@ -88,6 +88,9 @@ export default function LivePreview({
   // 1x1: the GPU downscale does the averaging, so reading the mean costs one pixel.
   const meanPixelRef = useRef<HTMLCanvasElement>(document.createElement("canvas"));
   const linerMaskRef = useRef<HTMLCanvasElement>(document.createElement("canvas"));
+  // Sized to the mouth, so the per-pixel pass touches a few tens of thousands of pixels and never
+  // reads back from the display canvas.
+  const lipRoiRef = useRef<HTMLCanvasElement>(document.createElement("canvas"));
   const lipMeanRef = useRef<number | null>(null);
   const blushMeanRef = useRef<number | null>(null);
   const frameRef = useRef(0);
@@ -212,27 +215,26 @@ export default function LivePreview({
           h,
         );
 
-        buildLipMask(lipMaskRef.current.getContext("2d")!, landmarks, w, h, FEATHER);
+        buildLipMask(lipMaskRef.current.getContext("2d", { willReadFrequently: true })!, landmarks, w, h, FEATHER);
         lipMeanRef.current = updateMean(lipMeanRef.current, lipMaskRef.current, lipBaseColor);
 
         // Per pixel, and only over the mouth: a blend mode cannot leave the specular alone, and
-        // leaving it alone is the difference between lipstick and a plastic shell.
+        // leaving it alone is the difference between lipstick and a plastic shell. Liner is a
+        // second layer in the same pass — it defines the edge of what the first one laid down.
         const lipBox = boundsOf(landmarks, OUTER_LIPS, w, h, FEATHER * 2);
-        recolourLip(
-          ctx,
-          lipMaskRef.current,
-          lipBox,
-          lipColor,
-          lipMeanRef.current,
-          LIP_INTENSITY,
-          SHINE[finish] ?? 0.16,
-        );
-
-        // Liner over the lip, since it defines the edge of what is already there.
+        const layers = [
+          { maskCanvas: lipMaskRef.current, shadeHex: lipColor, intensity: LIP_INTENSITY, gloss: SHINE[finish] ?? 0.16 },
+        ];
         if (lipLinerColor) {
-          buildLipLinerMask(linerMaskRef.current.getContext("2d")!, landmarks, w, h, LINER_FEATHER);
-          recolourLip(ctx, linerMaskRef.current, lipBox, lipLinerColor, lipMeanRef.current, LINER_INTENSITY, 0);
+          buildLipLinerMask(linerMaskRef.current.getContext("2d", { willReadFrequently: true })!, landmarks, w, h, LINER_FEATHER);
+          layers.push({
+            maskCanvas: linerMaskRef.current,
+            shadeHex: lipLinerColor,
+            intensity: LINER_INTENSITY,
+            gloss: 0,
+          });
         }
+        recolourLip(ctx, video, lipRoiRef.current, lipBox, layers, lipMeanRef.current);
       }
 
       rafRef.current = requestAnimationFrame(loop);
