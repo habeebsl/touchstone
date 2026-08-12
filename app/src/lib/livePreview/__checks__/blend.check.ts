@@ -72,7 +72,24 @@ for (const fx of ANALYSIS_FIXTURES) {
         fail(`${fx.id}/${look.label}/${region}: flattened (highlight-to-shadow range ${texture.toFixed(3)})`);
       }
 
-      // 3. Blush must not darken deep skin, which reads as a bruise rather than a flush.
+      // 3. It has to be the *right* colour, across the whole region and not just at its average.
+      //    This is the failure that reached a user: a per-channel relight exploded where the mean
+      //    was dark, clamping small channels and clipping the largest, so every shade rendered as
+      //    saturated red. Every other check here passed while it did — they measured how far a
+      //    pixel moved and whether texture survived, never which direction it moved in.
+      //
+      //    Measured at full application, on the highlight and the shadow rather than the mean:
+      //    at the mean the old code was correct by construction, and it was pixels away from the
+      //    mean that clipped.
+      for (const [where, sample] of [["highlight", specular], ["shadow", shadow]] as const) {
+        const rendered = predictComposite(sample, color, mean, 1);
+        const gap = Math.abs(((hexToOklch(rendered).h - hexToOklch(color).h + 540) % 360) - 180);
+        if (hexToOklch(color).c > 0.04 && gap > 15) {
+          fail(`${fx.id}/${look.label}/${region}: ${where} renders ${gap.toFixed(0)}° off the shade (${rendered} vs ${color})`);
+        }
+      }
+
+      // 4. Blush must not darken deep skin, which reads as a bruise rather than a flush.
       //    Deliberately not applied to the lip: a lipstick deeper than your own lip colour is
       //    ordinary at any skin depth.
       const lightnessShift = hexToOklch(out).l - hexToOklch(mean).l;

@@ -136,18 +136,19 @@ export function buildBlushMask(
 /**
  * Tint a region so it reads as makeup rather than as paint.
  *
- * The model is multiplicative relighting: `out = pixel * (shade / mean)`, where `mean` is what
- * that region is on average — her measured lip colour, or her skin. The shade sets the base
- * colour, and every deviation from the mean survives as a ratio, so shading, creases and the
- * specular highlight all come through. It is how a pigment actually behaves on a surface.
+ * The model is relighting: `out = shade * (luminance(pixel) / luminance(mean))`, where `mean` is
+ * what the region averages — her measured lip colour, or her skin. The shade supplies the colour
+ * outright and the pixel supplies only how *lit* it is, so shading, creases and the specular
+ * highlight all survive as a ratio while the hue is exactly the shade's.
  *
- * Measured against the alternatives on three backdrops, this was the only one that was both the
- * most visible *and* kept the most texture. Compositing flat colour (multiply, screen) flattens
- * everything and reads as paint. The `color` blend keeps texture but pins luminosity to the
- * backdrop, so a deep lip stays deep no matter the shade and the result is barely visible.
+ * Scaling by luminance rather than per channel is the whole trick, and getting it wrong is
+ * instructive: a per-channel ratio (`shade / mean` on r, g and b separately) explodes when the
+ * mean is dark, because a channel near zero divides into a large number. On deep colouring the
+ * small channels clamped to zero and the largest clipped, so every pixel landed on saturated red
+ * whatever shade was asked for.
  *
- * The trick that makes it cheap: since the correction is a constant per region, the whole thing
- * is a multiply by one colour plus a brightness scale — no per-pixel work, no shader.
+ * It is also cheap: a grayscale-and-brightness filter produces the ratio, and one multiply
+ * applies the shade. No per-pixel work, no shader.
  */
 export function compositeRegion(
   targetCtx: CanvasRenderingContext2D,
@@ -160,16 +161,19 @@ export function compositeRegion(
   w: number,
   h: number,
 ) {
-  const { factor, brightness } = relightFactor(shadeHex, meanHex);
   const scratch = scratchCanvas.getContext("2d")!;
 
+  // Each pixel's luminance relative to the region's mean: 1 where it matches, above 1 on a
+  // highlight, below in shadow.
   scratch.globalCompositeOperation = "source-over";
   scratch.clearRect(0, 0, w, h);
+  scratch.filter = `grayscale(1) brightness(${(1 / Math.max(0.06, luminance(meanHex))).toFixed(4)})`;
   scratch.drawImage(video, 0, 0, w, h);
+  scratch.filter = "none";
 
-  // The part of the correction that darkens.
+  // Multiplied by the shade, that ratio *is* the relit region.
   scratch.globalCompositeOperation = "multiply";
-  scratch.fillStyle = factor;
+  scratch.fillStyle = shadeHex;
   scratch.fillRect(0, 0, w, h);
 
   scratch.globalCompositeOperation = "destination-in";
@@ -178,46 +182,30 @@ export function compositeRegion(
 
   targetCtx.save();
   targetCtx.globalAlpha = intensity;
-  // And the part that brightens, which multiply cannot express — a channel of the correction
-  // above 1 means the shade is lighter than the region it is going on, which is the common case
-  // on deep skin.
-  if (brightness > 1.001) targetCtx.filter = `brightness(${brightness})`;
   targetCtx.drawImage(scratchCanvas, 0, 0);
   targetCtx.restore();
-  targetCtx.filter = "none";
 }
 
 const toRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
 const toHex = (rgb: number[]) =>
   "#" + rgb.map((v) => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, "0")).join("");
 
-/**
- * Split `shade / mean` into a multiply colour and a brightness scale.
- *
- * Canvas colours cannot exceed 1, so a correction that needs to brighten a channel is factored
- * out into a `brightness()` filter and the remainder is applied as a normal multiply.
- */
-export function relightFactor(shadeHex: string, meanHex: string): { factor: string; brightness: number } {
-  const shade = toRgb(shadeHex);
-  // Floored: a near-black mean would send the correction to infinity, and the fixtures do include
-  // lips at L 0.35.
-  const mean = toRgb(meanHex).map((v) => Math.max(0.06, v));
-
-  const ratio = shade.map((v, i) => v / mean[i]);
-  const brightness = Math.max(1, ...ratio);
-  return { factor: toHex(ratio.map((v) => v / brightness)), brightness };
+/** Rec. 709 luma, matching what the CSS `grayscale` filter computes. */
+function luminance(hex: string): number {
+  const [r, g, b] = toRgb(hex);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-/** What a pixel of `backdrop` becomes under the relight, for checks and for sizing decisions. */
+/** What a pixel of `backdrop` becomes under the relight — for the checks and for sizing shades. */
 export function predictComposite(
   backdropHex: string,
   shadeHex: string,
   meanHex: string,
   intensity: number,
 ): string {
-  const { factor, brightness } = relightFactor(shadeHex, meanHex);
+  const ratio = luminance(backdropHex) / Math.max(0.06, luminance(meanHex));
+  const shade = toRgb(shadeHex);
   const backdrop = toRgb(backdropHex);
-  const f = toRgb(factor);
-  const relit = backdrop.map((v, i) => Math.min(1, v * f[i] * brightness));
+  const relit = shade.map((v) => Math.min(1, v * ratio));
   return toHex(backdrop.map((v, i) => v + (relit[i] - v) * intensity));
 }
