@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 import type { TextureLip } from "../lib/youcam/types";
+import type { FromWorker, ToWorker } from "../lib/livePreview/landmarkerWorker";
 import {
   boundsOf,
   buildLipMask,
@@ -104,7 +105,14 @@ export default function LivePreview({
   const blushMeanRef = useRef<number | null>(null);
   const frameRef = useRef(0);
   const timings = useRef({ detect: 0, blush: 0, lip: 0, frame: 16, last: 0, samples: 0 });
+  // Only one of these is live. The worker is preferred; the inline landmarker is what runs if a
+  // worker cannot be created, which keeps a slow preview rather than no preview.
+  const workerRef = useRef<Worker | null>(null);
   const landmarkerRef = useRef<FaceLandmarker | null>(null);
+  // True between posting a frame and hearing back, so only one detection is ever in flight. The
+  // worker would otherwise queue frames it can never catch up on and the lag would grow forever.
+  const inFlightRef = useRef(false);
+  const detectRef = useRef({ cost: 0, count: 0, since: 0 });
   // Previous frame's smoothed landmarks, so the overlay edge stops shimmering between detections.
   const smoothedRef = useRef<NormalizedLandmark[] | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -124,13 +132,112 @@ export default function LivePreview({
   useEffect(() => {
     let cancelled = false;
 
-    async function setup() {
-      const vision = await FilesetResolver.forVisionTasks(WASM_BASE);
-      const landmarker = await FaceLandmarker.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: MODEL_URL, delegate: "GPU" },
-        runningMode: "VIDEO",
-        numFaces: 1,
+    /**
+     * Hand detection to a worker, resolving false if one cannot be stood up. The absolute URL
+     * form is what lets Vite bundle the worker; a bare path would not survive the build.
+     */
+    function startWorker(): Promise<boolean> {
+      return new Promise((resolve) => {
+        let worker: Worker;
+        try {
+          worker = new Worker(new URL("../lib/livePreview/landmarkerWorker.ts", import.meta.url), {
+            type: "module",
+          });
+        } catch {
+          resolve(false);
+          return;
+        }
+
+        // If the worker cannot report ready, fall back rather than leave a preview that never
+        // starts. Model fetch and compile dominate this, hence the generous window.
+        const timeout = setTimeout(() => {
+          worker.terminate();
+          resolve(false);
+        }, 20_000);
+
+        worker.onerror = () => {
+          clearTimeout(timeout);
+          worker.terminate();
+          resolve(false);
+        };
+
+        worker.onmessage = (event: MessageEvent<FromWorker>) => {
+          const message = event.data;
+          if (message.type === "ready") {
+            clearTimeout(timeout);
+            workerRef.current = worker;
+            resolve(true);
+            return;
+          }
+          if (message.type === "error") {
+            clearTimeout(timeout);
+            console.error("landmarker worker:", message.message);
+            worker.terminate();
+            workerRef.current = null;
+            resolve(false);
+            return;
+          }
+          if (message.type === "landmarks") {
+            inFlightRef.current = false;
+            detectRef.current.cost = message.cost;
+            detectRef.current.count++;
+            // Drop the smoothing history when the face leaves frame, or it eases in from wherever
+            // the face was last seen when she comes back.
+            smoothedRef.current = message.landmarks
+              ? smoothLandmarks(smoothedRef.current, message.landmarks)
+              : null;
+          }
+        };
+
+        worker.postMessage({ type: "init", wasmBase: WASM_BASE, modelUrl: MODEL_URL } satisfies ToWorker);
       });
+    }
+
+    /**
+     * Post the current frame for detection if the worker is free. Frames are dropped rather than
+     * queued while it is busy — the newest frame is the only one worth landmarking.
+     */
+    function requestDetection(video: HTMLVideoElement) {
+      const worker = workerRef.current;
+      if (!worker || inFlightRef.current) return;
+      inFlightRef.current = true;
+      createImageBitmap(video).then(
+        (bitmap) => {
+          if (!workerRef.current) {
+            bitmap.close();
+            inFlightRef.current = false;
+            return;
+          }
+          worker.postMessage({ type: "frame", bitmap, timestamp: performance.now() } satisfies ToWorker, [
+            bitmap,
+          ]);
+        },
+        () => {
+          inFlightRef.current = false;
+        },
+      );
+    }
+
+    async function setup() {
+      const onWorker = await startWorker();
+      if (cancelled) return;
+
+      if (!onWorker) {
+        // Inline: detection blocks the frame, which on a slow device is the 6fps behaviour the
+        // worker exists to avoid. Still better than a blank preview.
+        const vision = await FilesetResolver.forVisionTasks(WASM_BASE);
+        const landmarker = await FaceLandmarker.createFromOptions(vision, {
+          baseOptions: { modelAssetPath: MODEL_URL, delegate: "GPU" },
+          runningMode: "VIDEO",
+          numFaces: 1,
+        });
+        if (cancelled) {
+          landmarker.close();
+          return;
+        }
+        landmarkerRef.current = landmarker;
+      }
+
       const wasm = performance
         .getEntriesByType("resource")
         .map((e) => e.name)
@@ -140,13 +247,8 @@ export default function LivePreview({
         `${gl ? "webgl2" : "NO webgl2"} · ` +
         `${wasm?.split("/").pop()?.replace("vision_wasm_", "").replace("_internal.wasm", "") ?? "wasm?"} · ` +
         `${(navigator as { deviceMemory?: number }).deviceMemory ?? "?"}GB · ` +
-        `${navigator.hardwareConcurrency ?? "?"} cores`;
-
-      if (cancelled) {
-        landmarker.close();
-        return;
-      }
-      landmarkerRef.current = landmarker;
+        `${navigator.hardwareConcurrency ?? "?"} cores · ` +
+        `${onWorker ? "worker" : "inline"}`;
 
       const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
       if (cancelled) {
@@ -186,8 +288,7 @@ export default function LivePreview({
     function loop() {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      const landmarker = landmarkerRef.current;
-      if (!video || !canvas || !landmarker || video.readyState < 2) {
+      if (!video || !canvas || !(workerRef.current || landmarkerRef.current) || video.readyState < 2) {
         rafRef.current = requestAnimationFrame(loop);
         return;
       }
@@ -213,19 +314,24 @@ export default function LivePreview({
       }
 
       const tStart = performance.now();
-      const result = landmarker.detectForVideo(video, performance.now());
+      if (workerRef.current) {
+        // Non-blocking: the worker answers whenever it answers, and this frame renders against
+        // whatever the last answer was.
+        requestDetection(video);
+      } else {
+        const result = landmarkerRef.current!.detectForVideo(video, performance.now());
+        const detected = result.faceLandmarks[0];
+        smoothedRef.current = detected ? smoothLandmarks(smoothedRef.current, detected) : null;
+        detectRef.current.cost = performance.now() - tStart;
+        detectRef.current.count++;
+      }
       const tDetect = performance.now();
       const ctx = canvas.getContext("2d")!;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
       frameRef.current++;
-      const detected = result.faceLandmarks[0];
-      // Drop the smoothing history when the face leaves frame, or it eases in from wherever the
-      // face was last seen when she comes back.
-      if (!detected) smoothedRef.current = null;
-      const landmarks = detected ? smoothLandmarks(smoothedRef.current, detected) : null;
-      smoothedRef.current = landmarks;
+      const landmarks = smoothedRef.current;
 
       if (landmarks) {
         const w = canvas.width;
@@ -278,7 +384,10 @@ export default function LivePreview({
         if (t.samples > WARMUP_FRAMES) {
           const seed = t.samples === WARMUP_FRAMES + 1;
           const ease = (prev: number, next: number) => (seed ? next : prev + (next - prev) * 0.1);
-          t.detect = ease(t.detect, tDetect - tStart);
+          // On the worker path this is what detection cost on the other thread, which is no longer
+          // part of this frame's budget — the two numbers now mean different things and the
+          // readout says which.
+          t.detect = ease(t.detect, detectRef.current.cost);
           t.blush = ease(t.blush, tBeforeLip - tDetect);
           t.lip = ease(t.lip, now - tBeforeLip);
           t.frame = ease(t.frame, now - (t.last || now));
@@ -286,10 +395,16 @@ export default function LivePreview({
         t.last = now;
 
         if (frameRef.current % 15 === 0) {
-          const t = timings.current;
+          const d = detectRef.current;
+          // Detections per second, measured over the reporting window. Rendering can now outrun
+          // detection, so frame rate alone no longer says whether the mask is keeping up.
+          const elapsed = now - (d.since || now);
+          const rate = elapsed > 0 ? (d.count * 1000) / elapsed : 0;
+          d.since = now;
+          d.count = 0;
           onStatsRef.current?.(
-            `${(1000 / Math.max(1, t.frame)).toFixed(0)}fps · detect ${t.detect.toFixed(0)}ms · ` +
-              `blush ${t.blush.toFixed(0)}ms · lip ${t.lip.toFixed(0)}ms · ` +
+            `${(1000 / Math.max(1, t.frame)).toFixed(0)}fps · detect ${t.detect.toFixed(0)}ms ` +
+              `@${rate.toFixed(0)}/s · blush ${t.blush.toFixed(0)}ms · lip ${t.lip.toFixed(0)}ms · ` +
               `roi ${lipBox.width}x${lipBox.height} · frame ${w}x${h} · ${envRef.current}`,
           );
         }
@@ -306,7 +421,11 @@ export default function LivePreview({
     return () => {
       cancelled = true;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      workerRef.current?.terminate();
+      workerRef.current = null;
+      inFlightRef.current = false;
       landmarkerRef.current?.close();
+      landmarkerRef.current = null;
       const stream = videoRef.current?.srcObject as MediaStream | null;
       stream?.getTracks().forEach((t) => t.stop());
     };
