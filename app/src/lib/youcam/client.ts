@@ -12,26 +12,27 @@ import type {
   TaskResponse,
 } from "./types";
 
-const BASE_URL = "https://yce-api-01.makeupar.com";
+/**
+ * Our own proxy, not the API. The s2s credential is a server credential, and anything the browser
+ * holds the browser can show — a VITE_-prefixed key is inlined into the built JavaScript, which is
+ * where this one was. The proxy adds the Authorization header; see api/youcam/[...path].ts.
+ */
+const BASE_URL = "/api/youcam";
 
 export interface YouCamClientOptions {
-  apiKey: string;
+  /** Overridden only by the probes, which run in node and go direct. */
   baseUrl?: string;
 }
 
-function authHeaders(apiKey: string): HeadersInit {
-  return {
-    Authorization: `Bearer ${apiKey}`,
-    "Content-Type": "application/json",
-  };
+function authHeaders(): HeadersInit {
+  // No Authorization. The proxy attaches it, and the browser never sees the key.
+  return { "Content-Type": "application/json" };
 }
 
 export class YouCamClient {
-  private apiKey: string;
   private baseUrl: string;
 
-  constructor(options: YouCamClientOptions) {
-    this.apiKey = options.apiKey;
+  constructor(options: YouCamClientOptions = {}) {
     this.baseUrl = options.baseUrl ?? BASE_URL;
   }
 
@@ -42,7 +43,7 @@ export class YouCamClient {
   async uploadFile(file: File): Promise<string> {
     const initRes = await fetch(`${this.baseUrl}/s2s/v2.0/file`, {
       method: "POST",
-      headers: authHeaders(this.apiKey),
+      headers: authHeaders(),
       body: JSON.stringify({
         files: [
           {
@@ -75,7 +76,7 @@ export class YouCamClient {
   private async startTask<TReq>(taskPath: string, body: TReq): Promise<string> {
     const res = await fetch(`${this.baseUrl}/s2s/v2.0/task/${taskPath}`, {
       method: "POST",
-      headers: authHeaders(this.apiKey),
+      headers: authHeaders(),
       body: JSON.stringify(body),
     });
     if (!res.ok) {
@@ -91,7 +92,7 @@ export class YouCamClient {
   ): Promise<TaskResponse<TResult>> {
     const res = await fetch(`${this.baseUrl}/s2s/v2.0/task/${taskPath}/${taskId}`, {
       method: "GET",
-      headers: authHeaders(this.apiKey),
+      headers: authHeaders(),
     });
     if (!res.ok) {
       throw new Error(`Task status failed (${taskPath}/${taskId}): ${res.status}`);

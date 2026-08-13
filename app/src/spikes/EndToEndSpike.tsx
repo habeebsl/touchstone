@@ -6,8 +6,8 @@ import { fillLooks, type FilledLook } from "../lib/colorEngine/template";
 import { normaliseMeasured } from "../lib/colorEngine/normalise";
 import type { FacialColorTonesResult, FitzpatrickResult } from "../lib/youcam/types";
 
-const API_KEY = import.meta.env.VITE_YOUCAM_API_KEY as string;
-const SECRET_KEY = import.meta.env.VITE_YOUCAM_SECRET_KEY as string | undefined;
+const API_KEY = import.meta.env.VITE_YOUCAM_CAMERA_KIT_KEY as string;
+const SECRET_KEY = import.meta.env.VITE_YOUCAM_CAMERA_KIT_SECRET as string | undefined;
 
 type Stage =
   | { name: "capture" }
@@ -31,11 +31,8 @@ export default function EndToEndSpike() {
   const [stage, setStage] = useState<Stage>({ name: "capture" });
 
   async function handleCapture(file: File) {
-    if (!API_KEY) {
-      setStage({ name: "error", message: "VITE_YOUCAM_API_KEY is not set in .env.local" });
-      return;
-    }
-    const client = new YouCamClient({ apiKey: API_KEY });
+    // Goes through the same proxy the app does; the key is server-side.
+    const client = new YouCamClient();
 
     try {
       setStage({ name: "uploading" });

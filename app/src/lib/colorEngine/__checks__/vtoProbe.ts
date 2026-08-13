@@ -18,11 +18,11 @@ import type { MakeupEffect } from "../../youcam/types";
 // Node-only script; the app tsconfig is browser-targeted and has no node types.
 declare const process: { env: Record<string, string | undefined> };
 
-const API_KEY = process.env.VITE_YOUCAM_API_KEY;
+const API_KEY = process.env.YOUCAM_API_KEY;
 const BASE_URL = "https://yce-api-01.makeupar.com";
 const SAMPLE = "https://plugins-media.makeupar.com/strapi/assets/sample_Image_1_202b6bf6e6.jpg";
 
-if (!API_KEY) throw new Error("VITE_YOUCAM_API_KEY missing — run with --env-file=.env.local");
+if (!API_KEY) throw new Error("YOUCAM_API_KEY missing — run with --env-file=.env.local");
 
 const headers = { Authorization: `Bearer ${API_KEY}`, "Content-Type": "application/json" };
 

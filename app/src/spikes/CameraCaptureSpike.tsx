@@ -1,8 +1,8 @@
 import { useState } from "react";
 import CameraCapture from "../components/CameraCapture";
 
-const API_KEY = import.meta.env.VITE_YOUCAM_API_KEY as string;
-const SECRET_KEY = import.meta.env.VITE_YOUCAM_SECRET_KEY as string | undefined;
+const API_KEY = import.meta.env.VITE_YOUCAM_CAMERA_KIT_KEY as string;
+const SECRET_KEY = import.meta.env.VITE_YOUCAM_CAMERA_KIT_SECRET as string | undefined;
 
 export default function CameraCaptureSpike() {
   const [capturedFile, setCapturedFile] = useState<File | null>(null);
@@ -22,7 +22,7 @@ export default function CameraCaptureSpike() {
         below as a File, the faceDetectionCaptured → normalizeCapturedImage path works end to end.
       </p>
 
-      {!API_KEY && <p style={{ color: "salmon" }}>VITE_YOUCAM_API_KEY is not set in .env.local</p>}
+      {!API_KEY && <p style={{ color: "salmon" }}>VITE_YOUCAM_CAMERA_KIT_KEY is not set in .env.local</p>}
 
       <CameraCapture apiKey={API_KEY} secretKey={SECRET_KEY} onCapture={handleCapture} />
 
