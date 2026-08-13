@@ -118,6 +118,8 @@ export default function EndToEndSpike() {
             blushColor={stage.look.blushColor}
             lipLinerColor={stage.look.palette.lipLiner}
             finish={stage.look.finish}
+            lipIntensity={stage.look.lipIntensity}
+            blushIntensity={stage.look.blushIntensity}
             skinColor={stage.colors.skin_color ?? "#c69c7b"}
             lipBaseColor={stage.colors.lip_color ?? stage.colors.skin_color ?? "#b9776f"}
           />

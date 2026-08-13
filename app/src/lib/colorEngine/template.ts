@@ -53,6 +53,17 @@ export interface FilledLook {
   /** The two regions the live preview layer can render. */
   lipColor: string;
   blushColor: string;
+  /**
+   * How strongly each is worn, 0..1 — the same strength the rendered look is asking the API for.
+   *
+   * The live layer used to apply a fixed 0.96 to everything. That is not what any of these looks
+   * specify: Glazed asks for 55 with a third of it transparent, Sunlit for 66. So the live view
+   * came out vivid where the render came out muted, and worse, every look came out at the same
+   * strength — a soft look and a bold one were indistinguishable on camera, which is most of what
+   * a set of looks is for.
+   */
+  lipIntensity: number;
+  blushIntensity: number;
   /** Every colour the render carries, for display and debugging. */
   palette: Record<string, string>;
   effects: MakeupEffect[];
@@ -85,8 +96,10 @@ interface ColourAccent {
 const MAX_HUE_SHIFT = 16;
 
 /**
- * The floor no lip shade may go under, whatever its accent says. Set from the other end: the live
- * layer applies at 0.85, and below about 0.05 on the face the lipstick is not visible at all.
+ * The floor no lip shade may go under, whatever its accent says. Set from the other end: below
+ * about 0.05 on the face the lipstick is not visible at all. How strongly the layer applies it is
+ * no longer a single number — each look wears its own — so the gap is scaled by that where it is
+ * enforced, and this stays the floor beneath all of them.
  */
 const MIN_VISIBLE_LIP = 0.06;
 
@@ -353,7 +366,11 @@ function shift(hex: string, { h = 0, chroma = 1, l = 0 }: { h?: number; chroma?:
 function buildEffects(
   spec: LookTemplate,
   inputs: { colors: Measured; profile: ColourProfile; garment?: GarmentInfluence },
-): { effects: MakeupEffect[]; palette: Record<string, string>; live: { lip: string; blush: string } } {
+): {
+  effects: MakeupEffect[];
+  palette: Record<string, string>;
+  live: { lip: string; blush: string; lipIntensity: number; blushIntensity: number };
+} {
   const { register } = spec;
   const accent = spec.accent ?? {};
   const garment = inputs.garment;
@@ -382,6 +399,12 @@ function buildEffects(
   // requirement after the accent pushed two looks onto the same clamped value — the guard undoing
   // exactly the difference the accent exists to create. A look that steps its lip back is allowed
   // to sit closer to her natural colour, just never so close that it vanishes.
+  //
+  // Deliberately *not* scaled by how strongly the look wears the shade. Widening the gap for the
+  // gentler looks does keep them above the visibility floor, but it pushes the soft register out
+  // until it is as far from her natural lip as the bold one — which collapses the difference the
+  // set exists to offer, and pushed two looks onto the same clamped colour. A sheer look being
+  // subtler than a bold one is the point; the floor below is what stops subtle becoming invisible.
   const naturalLipGap = Math.max(
     MIN_VISIBLE_LIP,
     MIN_FROM_NATURAL_LIP[register] * (accent.lipChroma ?? 1),
@@ -566,7 +589,24 @@ function buildEffects(
   // The live layer always draws lip and blush, even for a look that applies no blush effect — a
   // face on camera still has cheeks — so those two are returned separately from what the look
   // *reports* wearing.
-  return { effects, palette, live: { lip, blush } };
+  //
+  // Their strengths come along, so the canvas applies what the look actually asks for rather than
+  // a constant.
+  //
+  // Colour intensity alone, with no extra discount for a gloss or sheer texture's transparency.
+  // Discounting it as well took Glazed down to 45% and back under the visibility floor — while
+  // the rendered look, at the same 55 the API is given, is plainly visible. Transparency there
+  // governs how the film reads, not how much colour lands, and the canvas has no film to thin.
+  return {
+    effects,
+    palette,
+    live: {
+      lip,
+      blush,
+      lipIntensity: spec.lip.intensity / 100,
+      blushIntensity: (spec.blush?.intensity ?? 35) / 100,
+    },
+  };
 }
 
 // --- Selection -------------------------------------------------------------------------------
@@ -650,6 +690,8 @@ function fill(
     finish: spec.lip.texture,
     lipColor: live.lip,
     blushColor: live.blush,
+    lipIntensity: live.lipIntensity,
+    blushIntensity: live.blushIntensity,
     palette,
     effects,
   };

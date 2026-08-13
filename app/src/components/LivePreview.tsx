@@ -27,6 +27,13 @@ interface LivePreviewProps {
    * cheek. Compositing both against skin was wrong — lips are already deeper and more saturated
    * than the face, so a shade sized against skin lands wide of what it actually has to shift.
    */
+  /**
+   * How strongly each is worn, 0..1, taken from the look itself rather than fixed here. A
+   * constant meant the canvas applied every shade at the same strength — vivid where the
+   * rendered look was muted, and identical across looks that are meant to differ.
+   */
+  lipIntensity: number;
+  blushIntensity: number;
   skinColor: string;
   lipBaseColor: string;
   /** Applied to the output canvas so the parent controls framing (full-bleed vs boxed). */
@@ -41,9 +48,9 @@ const MODEL_URL =
 // Relighting preserves the region's own variation, so it can run strong without flattening it.
 // Lipstick is opaque and deliberate — leaving 15% of the bare lip showing through was reading as
 // a wash rather than a shade. Blush is a flush and stays low.
-const LIP_INTENSITY = 0.96;
-const LINER_INTENSITY = 0.75;
-const BLUSH_INTENSITY = 0.4;
+// Liner is a fraction of whatever the lip is wearing, not a fixed strength: it is an edge on the
+// lipstick, so it has to move with it or a sheer lip gets a hard drawn border.
+const LINER_OF_LIP = 0.78;
 
 // How much specular each finish carries. Matte is genuinely zero: killing the shine is what
 // makes a matte look matte.
@@ -75,6 +82,8 @@ export default function LivePreview({
   blushColor,
   lipLinerColor,
   finish,
+  lipIntensity,
+  blushIntensity,
   skinColor,
   lipBaseColor,
   className = "",
@@ -207,7 +216,7 @@ export default function LivePreview({
           colorScratchRef.current,
           blushColor,
           blushMeanRef.current,
-          BLUSH_INTENSITY,
+          blushIntensity,
           w,
           h,
         );
@@ -224,14 +233,14 @@ export default function LivePreview({
           lipBox,
           lipColor,
           lipMeanRef.current,
-          LIP_INTENSITY,
+          lipIntensity,
           SHINE[finish] ?? 0.16,
         );
 
         // Liner over the lip, since it defines the edge of what is already there.
         if (lipLinerColor) {
           buildLipLinerMask(linerMaskRef.current.getContext("2d")!, landmarks, w, h, LINER_FEATHER);
-          recolourLip(ctx, linerMaskRef.current, lipBox, lipLinerColor, lipMeanRef.current, LINER_INTENSITY, 0);
+          recolourLip(ctx, linerMaskRef.current, lipBox, lipLinerColor, lipMeanRef.current, lipIntensity * LINER_OF_LIP, 0);
         }
       }
 
