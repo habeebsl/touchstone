@@ -269,6 +269,13 @@ export function luminance(hex: string): number {
  * Averaged by letting the GPU downscale the masked region to a single pixel, so this costs one
  * 1x1 read rather than a pass over the frame.
  */
+export interface LipLayer {
+  maskCanvas: HTMLCanvasElement;
+  shadeHex: string;
+  intensity: number;
+  gloss: number;
+}
+
 /**
  * Recolour the lip, per pixel, over its bounding box only.
  *
@@ -284,41 +291,74 @@ export function luminance(hex: string): number {
  * original pixel, which is what the trade literature means by applying the change in hue while
  * leaving saturation and brightness alone at the extremes.
  *
- * Costs a pass over the lip's bounding box — a few tens of thousands of pixels — rather than the
- * frame. The mask supplies coverage, so the edge stays as soft as it was drawn.
+ * The pixels come from the video into a small CPU-side buffer rather than being read back off the
+ * display canvas. Reading a GPU-backed canvas stalls the pipeline hard enough to drop frames, and
+ * doing it twice a frame — once for the lip, once for the liner — made the mouth appear in pieces
+ * as the compositing fell behind. All the layers are applied in one pass over one buffer instead.
+ *
+ * Worth being honest about in the code, since the comment above reads like a win: measured after
+ * the fact, this pass costs 25ms against detection's 113ms, so it was never the bottleneck it was
+ * written to fix. The first version of it also reallocated the buffer every frame and blitted the
+ * whole rectangle opaquely — two stalls and one erased blush, in the name of removing a stall.
+ * Both are addressed below.
  */
 export function recolourLip(
-  ctx: CanvasRenderingContext2D,
-  maskCanvas: HTMLCanvasElement,
+  targetCtx: CanvasRenderingContext2D,
+  video: CanvasImageSource,
+  roiCanvas: HTMLCanvasElement,
   box: { x: number; y: number; width: number; height: number },
-  shadeHex: string,
+  layers: LipLayer[],
   meanLuminance: number,
-  intensity: number,
-  gloss: number,
 ) {
   const { x, y, width, height } = box;
-  if (width < 2 || height < 2) return;
+  if (width < 2 || height < 2 || layers.length === 0) return;
 
-  const frame = ctx.getImageData(x, y, width, height);
-  const cover = maskCanvas.getContext("2d")!.getImageData(x, y, width, height);
-  const px = frame.data;
-  const mask = cover.data;
-
-  const [sr, sg, sb] = toRgb(shadeHex).map((v) => v * 255);
-  const mean = Math.max(MIN_MEAN_LUMINANCE, meanLuminance) * 255;
-
-  const out: [number, number, number] = [0, 0, 0];
-  for (let i = 0; i < px.length; i += 4) {
-    const coverage = mask[i + 3] / 255;
-    if (coverage < 0.004) continue;
-
-    lipPixel(px[i], px[i + 1], px[i + 2], sr, sg, sb, mean, intensity * coverage, gloss * coverage, out);
-    px[i] = out[0];
-    px[i + 1] = out[1];
-    px[i + 2] = out[2];
+  // Grown, never resized to fit. Assigning width or height reallocates the backing store and
+  // resets the context, and the mouth's box changes size on almost every frame — so sizing it
+  // exactly meant a fresh allocation per frame, which is a stall in the same place this buffer
+  // exists to remove one. A larger canvas costs nothing here; only the sub-rectangle is used.
+  if (roiCanvas.width < width || roiCanvas.height < height) {
+    roiCanvas.width = Math.max(roiCanvas.width, width);
+    roiCanvas.height = Math.max(roiCanvas.height, height);
   }
 
-  ctx.putImageData(frame, x, y);
+  const roi = roiCanvas.getContext("2d", { willReadFrequently: true })!;
+  roi.clearRect(0, 0, width, height);
+  roi.drawImage(video, x, y, width, height, 0, 0, width, height);
+
+  const frame = roi.getImageData(0, 0, width, height);
+  const px = frame.data;
+  const mean = Math.max(MIN_MEAN_LUMINANCE, meanLuminance) * 255;
+  const out: [number, number, number] = [0, 0, 0];
+
+  // The buffer starts fully transparent and gains opacity only where a mask covers it. This is
+  // what keeps the blit to the lip: the pixels come from the video, not from the display canvas,
+  // so blitting the whole rectangle opaquely would erase the blush already composited underneath
+  // wherever the mouth's box overlaps the cheek.
+  for (let i = 3; i < px.length; i += 4) px[i] = 0;
+
+  for (const layer of layers) {
+    const mask = layer.maskCanvas
+      .getContext("2d", { willReadFrequently: true })!
+      .getImageData(x, y, width, height).data;
+    const [sr, sg, sb] = toRgb(layer.shadeHex).map((v) => v * 255);
+
+    for (let i = 0; i < px.length; i += 4) {
+      const coverage = mask[i + 3] / 255;
+      if (coverage < 0.004) continue;
+
+      lipPixel(px[i], px[i + 1], px[i + 2], sr, sg, sb, mean, layer.intensity * coverage, layer.gloss * coverage, out);
+      px[i] = out[0];
+      px[i + 1] = out[1];
+      px[i + 2] = out[2];
+      // Layers overlap — the liner sits inside the lip — so the most-covered one wins rather than
+      // the last one drawn.
+      px[i + 3] = Math.max(px[i + 3], coverage * 255);
+    }
+  }
+
+  roi.putImageData(frame, 0, 0);
+  targetCtx.drawImage(roiCanvas, 0, 0, width, height, x, y, width, height);
 }
 
 /**
@@ -340,21 +380,12 @@ export function lipPixel(
   const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
   const ratio = lum / mean;
 
-  // 1 through the mid-tones, falling away into the specular and the deep shadow. Those keep the
-  // original pixel: the highlight is the colour of the light, and the shadow is not lipstick.
+  // 1 through the mid-tones, falling away into the specular. The highlight is the colour of the
+  // light, not of the lipstick, and tinting it is what makes a lip read as a plastic shell.
   //
   // Judged on the ratio *and* on absolute brightness, because on pale lips the ratio alone
   // under-detects a highlight: when the mean is already bright there is little headroom above it,
   // so a genuine specular scores barely 1.6 and took a third of the lipstick's colour.
-  // Bright is not the same as specular, and conflating the two rendered the lip as a rim with its
-  // whole lit centre left bare — the only pixels dark enough to qualify as "lip" were the edges.
-  // Under strong overhead light the middle of a lip is far brighter than the region's mean while
-  // still being ordinary diffuse lip, and it has to take the shade.
-  //
-  // So brightness now reduces coverage toward a floor rather than to nothing. The relight below
-  // already carries a highlight most of the way to white on its own — a shade multiplied by a
-  // ratio near 2 clips toward the light — so removing coverage as well was doing the same job
-  // twice, and the second time it cost the colour entirely.
   // A specular has to be bright in itself, not merely brighter than the region's average. The
   // average is dragged down by the lip line and the corners, so on a strongly lit mouth the
   // ordinary centre scores a high ratio while being nowhere near white — and it was that, read as

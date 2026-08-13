@@ -10,9 +10,8 @@ const OUTER_LIPS = [
   61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84, 181, 91, 146, 61,
 ];
 
-const WASM_BASE = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm";
-const MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+const WASM_BASE = "/mediapipe";
+const MODEL_URL = "/models/face_landmarker.task";
 
 type BlendMode = "multiply" | "soft-light";
 
