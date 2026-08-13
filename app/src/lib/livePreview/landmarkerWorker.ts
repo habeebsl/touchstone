@@ -60,12 +60,15 @@ function within<T>(work: Promise<T>, ms: number, label: string): Promise<T> {
   });
 }
 
-// Generous, because this has to cover loading and compiling the model on a slow device, not just
-// spotting a hang. Eight seconds was under that: the GPU attempt was reported as hung when it may
-// only have been mid-download, which threw away the real reason. Nothing waits on this any more —
-// the camera opens independently — so the cost of being patient is only that a genuine hang takes
-// longer to name.
-const STEP_TIMEOUT = 25_000;
+// Sized against a local model rather than a cold 3.7MB CDN download, which is what the earlier
+// 25s was covering. Init that is going to succeed takes seconds now, so waiting longer than this
+// only prolongs a failure — and a failure here is not free: it holds a second wasm instance and
+// the model on a device with 4GB while getting nowhere.
+//
+// Measured on the phone this targets, both delegates hang here indefinitely: MediaPipe will not
+// initialise in a worker on that browser at all. The path is kept because where it does work it
+// is the difference between 6fps and 30, and the main thread falls back cleanly when it does not.
+const STEP_TIMEOUT = 10_000;
 
 let landmarker: FaceLandmarker | null = null;
 

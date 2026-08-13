@@ -295,6 +295,12 @@ export interface LipLayer {
  * display canvas. Reading a GPU-backed canvas stalls the pipeline hard enough to drop frames, and
  * doing it twice a frame — once for the lip, once for the liner — made the mouth appear in pieces
  * as the compositing fell behind. All the layers are applied in one pass over one buffer instead.
+ *
+ * Worth being honest about in the code, since the comment above reads like a win: measured after
+ * the fact, this pass costs 25ms against detection's 113ms, so it was never the bottleneck it was
+ * written to fix. The first version of it also reallocated the buffer every frame and blitted the
+ * whole rectangle opaquely — two stalls and one erased blush, in the name of removing a stall.
+ * Both are addressed below.
  */
 export function recolourLip(
   targetCtx: CanvasRenderingContext2D,
@@ -307,9 +313,13 @@ export function recolourLip(
   const { x, y, width, height } = box;
   if (width < 2 || height < 2 || layers.length === 0) return;
 
-  if (roiCanvas.width !== width || roiCanvas.height !== height) {
-    roiCanvas.width = width;
-    roiCanvas.height = height;
+  // Grown, never resized to fit. Assigning width or height reallocates the backing store and
+  // resets the context, and the mouth's box changes size on almost every frame — so sizing it
+  // exactly meant a fresh allocation per frame, which is a stall in the same place this buffer
+  // exists to remove one. A larger canvas costs nothing here; only the sub-rectangle is used.
+  if (roiCanvas.width < width || roiCanvas.height < height) {
+    roiCanvas.width = Math.max(roiCanvas.width, width);
+    roiCanvas.height = Math.max(roiCanvas.height, height);
   }
 
   const roi = roiCanvas.getContext("2d", { willReadFrequently: true })!;
@@ -320,6 +330,12 @@ export function recolourLip(
   const px = frame.data;
   const mean = Math.max(MIN_MEAN_LUMINANCE, meanLuminance) * 255;
   const out: [number, number, number] = [0, 0, 0];
+
+  // The buffer starts fully transparent and gains opacity only where a mask covers it. This is
+  // what keeps the blit to the lip: the pixels come from the video, not from the display canvas,
+  // so blitting the whole rectangle opaquely would erase the blush already composited underneath
+  // wherever the mouth's box overlaps the cheek.
+  for (let i = 3; i < px.length; i += 4) px[i] = 0;
 
   for (const layer of layers) {
     const mask = layer.maskCanvas
@@ -335,11 +351,14 @@ export function recolourLip(
       px[i] = out[0];
       px[i + 1] = out[1];
       px[i + 2] = out[2];
+      // Layers overlap — the liner sits inside the lip — so the most-covered one wins rather than
+      // the last one drawn.
+      px[i + 3] = Math.max(px[i + 3], coverage * 255);
     }
   }
 
   roi.putImageData(frame, 0, 0);
-  targetCtx.drawImage(roiCanvas, x, y);
+  targetCtx.drawImage(roiCanvas, 0, 0, width, height, x, y, width, height);
 }
 
 /**
