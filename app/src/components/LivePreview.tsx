@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 import type { TextureLip } from "../lib/youcam/types";
-import type { FromWorker, ToWorker } from "../lib/livePreview/landmarkerWorker";
+import type { FromWorker, ToWorker } from "../lib/livePreview/landmarkerMessages";
 import {
   boundsOf,
   buildLipMask,

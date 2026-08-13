@@ -12,29 +12,28 @@
  * renders every frame against the most recent landmarks it has, and detections arrive when they
  * arrive. The tradeoff is real and worth stating: during fast head movement the makeup lags the
  * face by roughly one detection. A smooth preview that trails slightly beats a synced slideshow.
- */
-import type { FaceLandmarker, NormalizedLandmark } from "@mediapipe/tasks-vision";
-
-/**
- * Pulled in with importScripts rather than imported, and this is load-bearing.
  *
- * A module worker cannot call importScripts, which is what MediaPipe uses internally to load its
- * wasm glue — it fails with "ModuleFactory not set." on every delegate, which reads like a GPU
- * problem and is not one. A classic worker fixes that, but Vite's dev server hands classic
- * workers their source with ESM `import` statements still in it, which a classic worker also
- * cannot run. Taking the library as a global from its IIFE build is the one form that works in
- * both. The type-only import above is erased, so nothing here reaches the runtime.
+ * ---
+ *
+ * This file must transpile to a plain script: no imports, no exports, not even type ones. It is a
+ * classic worker, and a classic worker cannot run an `export {}` marker — which is what a file
+ * gets when it exports anything at all, types included. Every type below is therefore referenced
+ * through inline `import(...)` type syntax, which is erased outright, and the message shapes live
+ * in landmarkerMessages.ts. Both mistakes were made in order: "Unexpected token 'export'" is what
+ * the second one looks like.
+ *
+ * MediaPipe itself arrives through importScripts as the global `Vision`, from its IIFE build. It
+ * has to be a classic worker because MediaPipe loads its wasm glue with importScripts, which a
+ * module worker forbids — that failure surfaces as "ModuleFactory not set." on every delegate and
+ * reads like a GPU problem when it is not. But Vite's dev server hands classic workers their
+ * source with ESM imports still in it, so importing the library is not open either. The global is
+ * the one form that works in both dev and a production build.
  */
 declare const Vision: typeof import("@mediapipe/tasks-vision");
 
-export type ToWorker =
-  | { type: "init"; wasmBase: string; modelUrl: string }
-  | { type: "frame"; bitmap: ImageBitmap; timestamp: number };
-
-export type FromWorker =
-  | { type: "ready"; delegate: "GPU" | "CPU" }
-  | { type: "error"; message: string }
-  | { type: "landmarks"; landmarks: NormalizedLandmark[] | null; cost: number };
+type FaceLandmarker = import("@mediapipe/tasks-vision").FaceLandmarker;
+type ToWorker = import("./landmarkerMessages").ToWorker;
+type FromWorker = import("./landmarkerMessages").FromWorker;
 
 const post = (message: FromWorker) => (self as unknown as Worker).postMessage(message);
 
