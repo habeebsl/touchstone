@@ -37,16 +37,49 @@ type FromWorker = import("./landmarkerMessages").FromWorker;
 
 const post = (message: FromWorker) => (self as unknown as Worker).postMessage(message);
 
+/**
+ * Fail a step that hangs instead of waiting on it forever.
+ *
+ * Creating the GPU landmarker in a worker does not reject when the worker cannot get a WebGL2
+ * context — it simply never settles. Awaited plainly, that swallowed the CPU attempt underneath
+ * it and surfaced as a bare startup timeout with nothing to act on.
+ */
+function within<T>(work: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} hung for ${ms / 1000}s`)), ms);
+    work.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
+const STEP_TIMEOUT = 8_000;
+
 let landmarker: FaceLandmarker | null = null;
 
 self.onmessage = async (event: MessageEvent<ToWorker>) => {
   const message = event.data;
 
   if (message.type === "init") {
+    // Each step announces itself, so a startup that never finishes can still say where it stopped.
+    // The first attempt at this reported a bare "timeout", which named nothing.
     let vision;
     try {
+      post({ type: "stage", name: "script" });
       importScripts(`${message.wasmBase}/vision_bundle.js`);
-      vision = await Vision.FilesetResolver.forVisionTasks(message.wasmBase);
+      post({ type: "stage", name: "wasm" });
+      vision = await within(
+        Vision.FilesetResolver.forVisionTasks(message.wasmBase),
+        STEP_TIMEOUT,
+        "wasm",
+      );
     } catch (err) {
       post({ type: "error", message: `wasm: ${err instanceof Error ? err.message : String(err)}` });
       return;
@@ -56,23 +89,29 @@ self.onmessage = async (event: MessageEvent<ToWorker>) => {
     // even when the page itself has one. Falling straight back to inline on that would give up
     // the whole point of the worker: CPU inference off the render thread still leaves the frame
     // free, it just detects less often.
+    const failures: string[] = [];
     for (const delegate of ["GPU", "CPU"] as const) {
       try {
-        landmarker = await Vision.FaceLandmarker.createFromOptions(vision, {
-          baseOptions: { modelAssetPath: message.modelUrl, delegate },
-          runningMode: "VIDEO",
-          numFaces: 1,
-        });
+        post({ type: "stage", name: delegate });
+        landmarker = await within(
+          Vision.FaceLandmarker.createFromOptions(vision, {
+            baseOptions: { modelAssetPath: message.modelUrl, delegate },
+            runningMode: "VIDEO",
+            numFaces: 1,
+          }),
+          STEP_TIMEOUT,
+          delegate,
+        );
         post({ type: "ready", delegate });
         return;
       } catch (err) {
-        if (delegate === "CPU") {
-          // Reported rather than thrown: the main thread keeps a working inline path, and a
-          // preview that runs slowly beats one that does not run.
-          post({ type: "error", message: `${delegate}: ${err instanceof Error ? err.message : String(err)}` });
-        }
+        failures.push(`${delegate}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
+    // Reported rather than thrown: the main thread keeps a working inline path, and a preview
+    // that runs slowly beats one that does not run. Both reasons go back, since the GPU one is
+    // usually the informative half.
+    post({ type: "error", message: failures.join(" / ") });
     return;
   }
 

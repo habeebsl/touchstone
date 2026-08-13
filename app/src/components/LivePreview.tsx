@@ -155,6 +155,11 @@ export default function LivePreview({
           return;
         }
 
+        // The last startup step the worker announced. A worker that hangs never reports an error,
+        // so without this a timeout names nothing you can act on — which is how the previous
+        // round was spent.
+        let stage = "spawn";
+
         const giveUp = (why: string) => {
           clearTimeout(timeout);
           worker.terminate();
@@ -164,12 +169,16 @@ export default function LivePreview({
 
         // If the worker cannot report ready, fall back rather than leave a preview that never
         // starts. Model fetch and compile dominate this, hence the generous window.
-        const timeout = setTimeout(() => giveUp("timeout"), 20_000);
+        const timeout = setTimeout(() => giveUp(`timeout@${stage}`), 20_000);
 
         worker.onerror = (event) => giveUp(`load: ${event.message || "failed"}`);
 
         worker.onmessage = (event: MessageEvent<FromWorker>) => {
           const message = event.data;
+          if (message.type === "stage") {
+            stage = message.name;
+            return;
+          }
           if (message.type === "ready") {
             clearTimeout(timeout);
             workerRef.current = worker;

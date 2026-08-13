@@ -14,5 +14,7 @@ export type ToWorker =
 
 export type FromWorker =
   | { type: "ready"; delegate: "GPU" | "CPU" }
+  /** How far startup got, so a worker that never finishes can still say where it stopped. */
+  | { type: "stage"; name: string }
   | { type: "error"; message: string }
   | { type: "landmarks"; landmarks: NormalizedLandmark[] | null; cost: number };
