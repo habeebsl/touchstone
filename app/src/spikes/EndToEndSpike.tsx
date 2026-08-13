@@ -6,8 +6,6 @@ import { fillLooks, type FilledLook } from "../lib/colorEngine/template";
 import { normaliseMeasured } from "../lib/colorEngine/normalise";
 import type { FacialColorTonesResult, FitzpatrickResult } from "../lib/youcam/types";
 
-const API_KEY = import.meta.env.VITE_YOUCAM_CAMERA_KIT_KEY as string;
-const SECRET_KEY = import.meta.env.VITE_YOUCAM_CAMERA_KIT_SECRET as string | undefined;
 
 type Stage =
   | { name: "capture" }
@@ -76,7 +74,7 @@ export default function EndToEndSpike() {
       </p>
 
       {stage.name === "capture" && (
-        <CameraCapture apiKey={API_KEY} secretKey={SECRET_KEY} onCapture={handleCapture} />
+        <CameraCapture onCapture={handleCapture} />
       )}
 
       {stage.name === "uploading" && <p>Uploading photo…</p>}

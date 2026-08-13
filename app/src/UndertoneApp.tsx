@@ -15,11 +15,6 @@ import { getFixture, rememberAnalysis } from "./lib/fixtures/analysisFixtures";
 import { clearSession, loadSession, saveSession } from "./lib/session/persistedSession";
 import type { FacialColorTonesResult, FitzpatrickScale } from "./lib/youcam/types";
 
-// Camera Kit is a browser SDK — window.YMK.init runs client-side by design — so its credential
-// cannot be proxied and has to be a key meant to be public. The s2s key is not that, and is now
-// server-side only; see api/youcam/[...path].ts.
-const CAMERA_KIT_KEY = import.meta.env.VITE_YOUCAM_CAMERA_KIT_KEY as string | undefined;
-const CAMERA_KIT_SECRET = import.meta.env.VITE_YOUCAM_CAMERA_KIT_SECRET as string | undefined;
 
 /**
  * `?fixture=<id>` replays a stored analysis instead of calling the analysis APIs.
@@ -283,15 +278,14 @@ export default function UndertoneApp() {
     [client, measured],
   );
 
-  const camera = useCameraKit({ apiKey: CAMERA_KIT_KEY ?? "", secretKey: CAMERA_KIT_SECRET, onCapture: handleCapture });
+  const camera = useCameraKit({ onCapture: handleCapture });
 
   // The analysing screen is shown for both passes; only the render pass has a file id in hand.
   const looksPending = fileId !== null;
 
-  const fatal =
-    error ??
-    (!CAMERA_KIT_KEY ? "VITE_YOUCAM_CAMERA_KIT_KEY is not set in .env.local" : null) ??
-    camera.error;
+  // Nothing to check for a missing client key any more: there is no client key. A missing
+  // server key surfaces from the proxy on the first call instead.
+  const fatal = error ?? camera.error;
 
   return (
     <>

@@ -2,8 +2,6 @@ import CameraKitMount from "./CameraKitMount";
 import { useCameraKit } from "../lib/cameraKit/useCameraKit";
 
 interface CameraCaptureProps {
-  apiKey: string;
-  secretKey?: string;
   onCapture: (file: File) => void;
 }
 
@@ -12,8 +10,8 @@ interface CameraCaptureProps {
  * same `useCameraKit` hook directly, because there the "open camera" action belongs to the intro
  * screen's own button rather than to a component that owns both button and mount point.
  */
-export default function CameraCapture({ apiKey, secretKey, onCapture }: CameraCaptureProps) {
-  const { ready, error, isOpen, open } = useCameraKit({ apiKey, secretKey, onCapture });
+export default function CameraCapture({ onCapture }: CameraCaptureProps) {
+  const { ready, error, isOpen, open } = useCameraKit({ onCapture });
 
   return (
     <div>
