@@ -151,8 +151,16 @@ console.log("");
     const mean = fx.colors.lip_color;
     const { l, c, h } = hexToOklch(mean);
     // The three parts of a lip: shadow, evenly lit, and the specular catching the light.
+    //
+    // The specular has a lightness floor, because it is the light source reflected rather than a
+    // brighter version of the surface — it does not get dimmer just because the lip is deeper.
+    // Modelled as l * 1.75 alone it came out genuinely dark on deep lips, and the renderer was
+    // right to treat a dark pixel as lip rather than as a highlight; it was this fixture that was
+    // wrong. Which matters beyond the check: "bright relative to the region" is not the same
+    // property as "bright", and taking them as the same is what left a strongly lit mouth
+    // unpainted through its whole centre.
     const shadow = oklchToHex({ l: Math.max(0.04, l * 0.5), c: c * 0.8, h });
-    const specular = oklchToHex({ l: Math.min(0.98, l * 1.75), c: c * 0.25, h });
+    const specular = oklchToHex({ l: Math.min(0.98, Math.max(0.74, l * 1.75)), c: c * 0.25, h });
 
     for (const look of selectLooks(fx.colors, fx.fitzpatrick)) {
       const shade = look.lipColor;
@@ -163,12 +171,30 @@ console.log("");
         fail(`${fx.id}/${look.label}: the lit lip renders ${body}, not the shade ${shade}`);
       }
 
-      // 2. The specular stays the colour of the light. Checked as chroma, since a highlight
-      //    tinted with lipstick is exactly what "plastic" looks like.
+      // 2. The specular still reads as light rather than as lipstick: clearly lighter than the
+      //    body of the lip and clearly less saturated than it.
+      //
+      //    This used to demand that the highlight gain almost no chroma at all, and that was the
+      //    wrong property. It is satisfied perfectly by applying no lipstick, which is what the
+      //    renderer then did: under strong light a wide stretch of ordinary diffuse lip scores
+      //    bright, so the lip rendered as a red rim around a bare centre. The check passed the
+      //    whole time. Measured against the body rather than against bare lip, the real
+      //    distinction — highlight versus painted surface — survives, and a lit lip still gets
+      //    painted.
       const lit = apply(specular, shade, mean, 0);
-      if (hexToOklch(lit).c > hexToOklch(specular).c + 0.04) {
+      const litC = hexToOklch(lit);
+      const bodyC = hexToOklch(body);
+      if (litC.l < bodyC.l + 0.08) {
         fail(
-          `${fx.id}/${look.label}: the highlight was tinted (chroma ${hexToOklch(specular).c.toFixed(3)} -> ${hexToOklch(lit).c.toFixed(3)})`,
+          `${fx.id}/${look.label}: the highlight stopped reading as one (lightness ${bodyC.l.toFixed(3)} body vs ${litC.l.toFixed(3)} highlight)`,
+        );
+      }
+      // Proportional, with a small absolute allowance: on a muted shade the body's own chroma is
+      // barely above neutral, and a purely proportional bound there demands a highlight more
+      // colourless than the lipstick is.
+      if (litC.c > bodyC.c * 0.6 + 0.02) {
+        fail(
+          `${fx.id}/${look.label}: the highlight is as saturated as the lipstick (chroma ${litC.c.toFixed(3)} vs body ${bodyC.c.toFixed(3)})`,
         );
       }
 
