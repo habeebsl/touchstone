@@ -13,7 +13,19 @@
  * arrive. The tradeoff is real and worth stating: during fast head movement the makeup lags the
  * face by roughly one detection. A smooth preview that trails slightly beats a synced slideshow.
  */
-import { FaceLandmarker, FilesetResolver, type NormalizedLandmark } from "@mediapipe/tasks-vision";
+import type { FaceLandmarker, NormalizedLandmark } from "@mediapipe/tasks-vision";
+
+/**
+ * Pulled in with importScripts rather than imported, and this is load-bearing.
+ *
+ * A module worker cannot call importScripts, which is what MediaPipe uses internally to load its
+ * wasm glue — it fails with "ModuleFactory not set." on every delegate, which reads like a GPU
+ * problem and is not one. A classic worker fixes that, but Vite's dev server hands classic
+ * workers their source with ESM `import` statements still in it, which a classic worker also
+ * cannot run. Taking the library as a global from its IIFE build is the one form that works in
+ * both. The type-only import above is erased, so nothing here reaches the runtime.
+ */
+declare const Vision: typeof import("@mediapipe/tasks-vision");
 
 export type ToWorker =
   | { type: "init"; wasmBase: string; modelUrl: string }
@@ -34,7 +46,8 @@ self.onmessage = async (event: MessageEvent<ToWorker>) => {
   if (message.type === "init") {
     let vision;
     try {
-      vision = await FilesetResolver.forVisionTasks(message.wasmBase);
+      importScripts(`${message.wasmBase}/vision_bundle.js`);
+      vision = await Vision.FilesetResolver.forVisionTasks(message.wasmBase);
     } catch (err) {
       post({ type: "error", message: `wasm: ${err instanceof Error ? err.message : String(err)}` });
       return;
@@ -46,7 +59,7 @@ self.onmessage = async (event: MessageEvent<ToWorker>) => {
     // free, it just detects less often.
     for (const delegate of ["GPU", "CPU"] as const) {
       try {
-        landmarker = await FaceLandmarker.createFromOptions(vision, {
+        landmarker = await Vision.FaceLandmarker.createFromOptions(vision, {
           baseOptions: { modelAssetPath: message.modelUrl, delegate },
           runningMode: "VIDEO",
           numFaces: 1,

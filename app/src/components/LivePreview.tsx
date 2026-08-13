@@ -145,9 +145,11 @@ export default function LivePreview({
       return new Promise((resolve) => {
         let worker: Worker;
         try {
-          worker = new Worker(new URL("../lib/livePreview/landmarkerWorker.ts", import.meta.url), {
-            type: "module",
-          });
+          // Classic, not a module worker. MediaPipe loads its wasm glue with importScripts(),
+          // which is forbidden inside a module worker — it fails with "ModuleFactory not set."
+          // for every delegate, which reads like a GPU problem and is not one. Vite bundles this
+          // to an IIFE (see `worker.format` in vite.config.ts) so the imports still resolve.
+          worker = new Worker(new URL("../lib/livePreview/landmarkerWorker.ts", import.meta.url));
         } catch (err) {
           resolve(`inline(spawn: ${err instanceof Error ? err.message : String(err)})`);
           return;
