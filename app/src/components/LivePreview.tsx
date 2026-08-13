@@ -116,6 +116,10 @@ export default function LivePreview({
 
   const onStatsRef = useRef(onStats);
   onStatsRef.current = onStats;
+  // Which wasm build actually loaded and whether the GPU delegate had anything to run on. Two
+  // rounds of tuning the compositing were spent on what turned out to be detection cost, and
+  // detection cost is decided here rather than anywhere in our code.
+  const envRef = useRef("");
 
   useEffect(() => {
     let cancelled = false;
@@ -127,6 +131,17 @@ export default function LivePreview({
         runningMode: "VIDEO",
         numFaces: 1,
       });
+      const wasm = performance
+        .getEntriesByType("resource")
+        .map((e) => e.name)
+        .find((n) => n.includes("/mediapipe/") && n.endsWith(".wasm"));
+      const gl = document.createElement("canvas").getContext("webgl2");
+      envRef.current =
+        `${gl ? "webgl2" : "NO webgl2"} · ` +
+        `${wasm?.split("/").pop()?.replace("vision_wasm_", "").replace("_internal.wasm", "") ?? "wasm?"} · ` +
+        `${(navigator as { deviceMemory?: number }).deviceMemory ?? "?"}GB · ` +
+        `${navigator.hardwareConcurrency ?? "?"} cores`;
+
       if (cancelled) {
         landmarker.close();
         return;
@@ -275,7 +290,7 @@ export default function LivePreview({
           onStatsRef.current?.(
             `${(1000 / Math.max(1, t.frame)).toFixed(0)}fps · detect ${t.detect.toFixed(0)}ms · ` +
               `blush ${t.blush.toFixed(0)}ms · lip ${t.lip.toFixed(0)}ms · ` +
-              `roi ${lipBox.width}x${lipBox.height} · frame ${w}x${h}`,
+              `roi ${lipBox.width}x${lipBox.height} · frame ${w}x${h} · ${envRef.current}`,
           );
         }
       }
