@@ -231,6 +231,33 @@ export default function LivePreview({
     }
 
     async function setup() {
+      // The camera does not depend on the detector, and waiting for one before asking for the
+      // other is what made the preview slow to open: every failed worker attempt spent its
+      // fallback timeout — up to twenty seconds — before getUserMedia was even called. Started
+      // together, the mirror appears as soon as the camera does and the makeup arrives when
+      // detection is ready.
+      const camera = navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+      // Nothing is awaiting this yet; without a handler a slow permission prompt would surface as
+      // an unhandled rejection before setup reaches it.
+      camera.catch(() => {});
+
+      startDetector();
+
+      const stream = await camera;
+      if (cancelled) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      const video = videoRef.current!;
+      video.srcObject = stream;
+      await video.play();
+
+      setStatus("Live");
+      loop();
+    }
+
+    /** Stand up whichever detector this browser will give us, without holding up the camera. */
+    async function startDetector() {
       const how = await startWorker();
       if (cancelled) return;
 
@@ -260,18 +287,6 @@ export default function LivePreview({
         `${wasm?.split("/").pop()?.replace("vision_wasm_", "").replace("_internal.wasm", "") ?? "wasm?"} · ` +
         `${(navigator as { deviceMemory?: number }).deviceMemory ?? "?"}GB · ` +
         `${navigator.hardwareConcurrency ?? "?"} cores · ${how}`;
-
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
-      if (cancelled) {
-        stream.getTracks().forEach((t) => t.stop());
-        return;
-      }
-      const video = videoRef.current!;
-      video.srcObject = stream;
-      await video.play();
-
-      setStatus("Live");
-      loop();
     }
 
     /**
@@ -299,7 +314,9 @@ export default function LivePreview({
     function loop() {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      if (!video || !canvas || !(workerRef.current || landmarkerRef.current) || video.readyState < 2) {
+      // Deliberately not waiting on a detector: the frame is drawn either way, so the mirror is
+      // live while landmarking is still starting up rather than after it.
+      if (!video || !canvas || video.readyState < 2) {
         rafRef.current = requestAnimationFrame(loop);
         return;
       }
@@ -329,8 +346,8 @@ export default function LivePreview({
         // Non-blocking: the worker answers whenever it answers, and this frame renders against
         // whatever the last answer was.
         requestDetection(video);
-      } else {
-        const result = landmarkerRef.current!.detectForVideo(video, performance.now());
+      } else if (landmarkerRef.current) {
+        const result = landmarkerRef.current.detectForVideo(video, performance.now());
         const detected = result.faceLandmarks[0];
         smoothedRef.current = detected ? smoothLandmarks(smoothedRef.current, detected) : null;
         detectRef.current.cost = performance.now() - tStart;
