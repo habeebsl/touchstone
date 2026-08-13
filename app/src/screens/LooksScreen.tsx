@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import Swatch from "../components/ui/Swatch";
 import ColouringSummary from "../components/ColouringSummary";
 import ShadeSheet from "../components/ShadeSheet";
+import PlacementProof from "../components/PlacementProof";
 import { TEMPLATE_COUNT, type FilledLook } from "../lib/colorEngine/template";
 import type { ColourProfile } from "../lib/colorEngine/season";
 import type { NormalisedColors } from "../lib/colorEngine/normalise";
@@ -23,6 +24,10 @@ interface LooksScreenProps {
   onStartOver: () => void;
   /** Fires when a render URL no longer loads — they are pre-signed and expire after 2 hours. */
   onImageExpired: () => void;
+  /** Renders the boldest look again with the depth adaptation off. Costs one API unit. */
+  onCompare: (look: FilledLook) => void;
+  comparisonUrl: string | null;
+  comparing: boolean;
 }
 
 /**
@@ -50,6 +55,9 @@ export default function LooksScreen({
   profile,
   onStartOver,
   onImageExpired,
+  onCompare,
+  comparisonUrl,
+  comparing,
 }: LooksScreenProps) {
   // Tapping a look opens its shades. It used to open the live camera view, which has been
   // removed: a half-working AR filter was the weakest thing in the product and invited comparison
@@ -57,7 +65,6 @@ export default function LooksScreen({
   const [shades, setShades] = useState<RenderedLook | null>(null);
   const boldest =
     [...looks].sort((a, b) => REGISTER_ORDER[b.look.register] - REGISTER_ORDER[a.look.register])[0];
-  const lipPlacement = boldest?.look.placements.find((p) => p.role === "lip") ?? null;
 
   return (
     <MobileShell>
@@ -70,10 +77,20 @@ export default function LooksScreen({
         </p>
       </section>
 
+      <ColouringSummary colors={colors} profile={profile} />
+
       {/* The boldest look on show, because that is where the placement rule bites hardest — a
-          soft register sits close to her own colouring either way, so it makes the weakest case
-          for a decision that is real. */}
-      <ColouringSummary colors={colors} profile={profile} placement={lipPlacement} />
+          soft register sits close to her own colouring under either rule, so it makes the weakest
+          case for a decision that is real. */}
+      {boldest && (
+        <PlacementProof
+          look={boldest.look}
+          adaptedUrl={boldest.imageUrl}
+          conventionalUrl={comparisonUrl}
+          busy={comparing}
+          onRender={() => onCompare(boldest.look)}
+        />
+      )}
 
       <div className="flex flex-col gap-10 pb-12">
         {looks.map((rendered) => (

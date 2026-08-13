@@ -1,20 +1,12 @@
 import { useState } from "react";
 import Swatch from "./ui/Swatch";
 import { foundationGuide } from "../lib/colorEngine/foundation";
-import { hexToOklch } from "../lib/colorEngine/oklch";
-import type { Placement } from "../lib/colorEngine/palette";
 import type { ColourProfile } from "../lib/colorEngine/season";
 import type { NormalisedColors } from "../lib/colorEngine/normalise";
 
 interface ColouringSummaryProps {
   colors: NormalisedColors;
   profile: ColourProfile;
-  /**
-   * Where the lip was placed against where the conventional rule would have put it. Absent for a
-   * role that has no placement decision. It belongs here rather than on a look because it is a
-   * fact about her skin — the same argument whichever look she is looking at.
-   */
-  placement?: Placement | null;
 }
 
 /**
@@ -27,13 +19,9 @@ interface ColouringSummaryProps {
  * "Why?" is there for whoever wants it, and its presence is itself the signal that an answer
  * exists.
  */
-export default function ColouringSummary({ colors, profile, placement }: ColouringSummaryProps) {
+export default function ColouringSummary({ colors, profile }: ColouringSummaryProps) {
   const [open, setOpen] = useState(false);
   const foundation = foundationGuide(profile, colors.skin_color);
-  // Said plainly either way: on colouring the rule already suits, "nothing needed changing" is
-  // the honest result and still evidence the check ran.
-  const sameShade = placement ? placement.conventional === placement.adapted : false;
-  const conventionalChroma = placement ? hexToOklch(placement.conventional).c : 0;
 
   return (
     <section className="mb-8 rounded-lg border border-border bg-surface">
@@ -90,38 +78,6 @@ export default function ColouringSummary({ colors, profile, placement }: Colouri
               ))}
             </dl>
           </Block>
-
-          {/* The engine's own working, not a description of it: both hexes below come from
-              pickColour, which computes the conventional placement alongside the one it uses.
-              This is the section that carries the actual claim — the visibility guard downstream
-              is a backstop, and on deep colouring it rarely has anything left to do. */}
-          {placement && (
-            <Block title="How your shades were placed">
-              <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
-                <Measured label="The usual rule" hex={placement.conventional} />
-                <Measured label="Placed for your depth" hex={placement.adapted} />
-              </div>
-              <p className="font-body mt-3 text-sm leading-relaxed text-muted">
-                {sameShade ? (
-                  <>
-                    Makeup colour is normally placed below your skin&rsquo;s own lightness. On your
-                    colouring there is room for that, so both rules agree and nothing needed
-                    changing — the adjustment only starts to matter on deeper skin, where there
-                    isn&rsquo;t.
-                  </>
-                ) : (
-                  <>
-                    Makeup colour is normally placed below your skin&rsquo;s own lightness. On your
-                    colouring there is little room below, and going there costs the colour itself —
-                    the usual rule lands on{" "}
-                    <span className="text-foreground">{placement.conventional}</span>, which is
-                    close to {conventionalChroma < 0.02 ? "black" : "colourless"}. Your shades are
-                    placed where the colour survives instead.
-                  </>
-                )}
-              </p>
-            </Block>
-          )}
 
           <Block title="Foundation">
             <p className="font-body text-sm text-foreground">

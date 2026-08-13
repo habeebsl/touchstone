@@ -6,7 +6,7 @@ import LooksScreen, { type RenderedLook } from "./screens/LooksScreen";
 import OutfitScreen from "./screens/OutfitScreen";
 import { useCameraKit } from "./lib/cameraKit/useCameraKit";
 import { YouCamClient } from "./lib/youcam/client";
-import { selectLooks } from "./lib/colorEngine/template";
+import { selectLooks, type FilledLook } from "./lib/colorEngine/template";
 import { analyseColouring, type ColourProfile } from "./lib/colorEngine/season";
 import { normaliseMeasured, type NormalisedColors } from "./lib/colorEngine/normalise";
 import { garmentPaletteFromImage, type GarmentSwatch } from "./lib/garment/palette";
@@ -62,6 +62,10 @@ export default function UndertoneApp() {
   );
   const [profile, setProfile] = useState<ColourProfile | null>(restored?.profile ?? null);
   const [looks, setLooks] = useState<RenderedLook[]>(restored?.looks ?? []);
+  // The counterfactual render, once she asks for it. Not persisted: it is an argument, not a
+  // result, and it is one unit to produce again.
+  const [comparisonUrl, setComparisonUrl] = useState<string | null>(null);
+  const [comparing, setComparing] = useState(false);
   const [stepsDone, setStepsDone] = useState(0);
   const [status, setStatus] = useState("Uploading your photo");
   const [error, setError] = useState<string | null>(null);
@@ -171,6 +175,39 @@ export default function UndertoneApp() {
    * Render the looks. Split out from the analysis so the outfit step can sit between them —
    * this is the part that costs a unit per look, so it runs once, with the outfit already known.
    */
+  /**
+   * Render one look again with the depth adaptation switched off, so the two can be compared on
+   * her own face rather than as two hex values.
+   *
+   * One unit: the analysis is 30 of the 33 a full run costs, and re-rendering against an
+   * already-analysed image is 1 per look. Deliberately on request rather than rendered up front —
+   * a user has not asked to see the worse version of her face, and on colouring where the rule
+   * never fires there is nothing to show.
+   */
+  const renderConventional = useCallback(
+    async (look: FilledLook) => {
+      if (!fileId) return;
+      setComparing(true);
+      try {
+        // Only the lip colour is substituted. Everything else is the look as rendered, so the
+        // comparison isolates the placement rule instead of showing two different looks.
+        const effects = look.effects.map((effect) =>
+          effect.category === "lip_color"
+            ? { ...effect, palettes: effect.palettes.map((p) => ({ ...p, color: look.conventionalLip })) }
+            : effect,
+        );
+        const result = await client.runMakeupVto({ src_file_id: fileId, effects, version: "1.0" });
+        setComparisonUrl(result.url);
+      } catch (err) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setComparing(false);
+      }
+    },
+    [fileId],
+  );
+
   const renderLooks = useCallback(
     async (garment?: GarmentSwatch[]) => {
       if (!fileId || !measured) return;
@@ -283,6 +320,9 @@ export default function UndertoneApp() {
           colors={measured}
           profile={profile}
           onStartOver={reset}
+          onCompare={(look) => void renderConventional(look)}
+          comparisonUrl={comparisonUrl}
+          comparing={comparing}
           onImageExpired={() => {
             clearSession();
             setError("Your looks have expired. Renders are only kept for a couple of hours.");

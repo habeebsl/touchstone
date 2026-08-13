@@ -99,6 +99,13 @@ function accentHueForEyes(eye: EyeColorName, spec: SeasonSpec, register: Registe
 export interface PaletteInputs {
   colors: Measured;
   profile: ColourProfile;
+  /**
+   * Place colour the conventional way — below the skin's own lightness, with no adaptation for
+   * depth. Only ever set to build the counterfactual the product shows her: the same look with
+   * this one rule switched off, so the comparison isolates the rule instead of comparing two
+   * different engines.
+   */
+  conventional?: boolean;
 }
 
 /**
@@ -108,7 +115,7 @@ export interface PaletteInputs {
  * and a minimum perceptual gap from the skin is enforced so no colour ever disappears into it.
  */
 export function pickColour(
-  { colors, profile }: PaletteInputs,
+  { colors, profile, conventional }: PaletteInputs,
   role: Role,
   register: Register,
   /** Collects the visibility check for this role, when the caller wants to show its working. */
@@ -194,7 +201,7 @@ export function pickColour(
     // 0 for fair skin, 1 for the deepest.
     const deepBlend = Math.max(0, Math.min(1, (0.62 - skin.l) / 0.3));
     // Blush stays a flush close to the face, so it follows the skin more than the lip does.
-    const pull = role === "blush" ? deepBlend * 0.6 : deepBlend;
+    const pull = conventional ? 0 : role === "blush" ? deepBlend * 0.6 : deepBlend;
 
     lightness = below * (1 - pull) + VIVID_L * pull + spec.lightnessBias;
     // Colour placed at or above the skin has to carry the distinction through saturation.

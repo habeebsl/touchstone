@@ -82,6 +82,11 @@ export interface FilledLook {
    * difference between a vivid shade and something close to black.
    */
   placements: Placement[];
+  /**
+   * This look's lip with the depth adaptation switched off and nothing else changed. Equal to
+   * `lipColor` wherever the rule was not needed, which is most colouring.
+   */
+  conventionalLip: string;
   /** Every colour the render carries, for display and debugging. */
   palette: Record<string, string>;
   effects: MakeupEffect[];
@@ -389,6 +394,7 @@ function buildEffects(
   palette: Record<string, string>;
   checks: ShadeCheck[];
   placements: Placement[];
+  conventionalLip: string;
   live: { lip: string; blush: string; lipIntensity: number; blushIntensity: number };
 } {
   const { register } = spec;
@@ -432,6 +438,25 @@ function buildEffects(
   const againstSkin = checkDistance(lipBase, inputs.colors.skin_color, MIN_DISTANCE_FOR.lip!, "lip", "skin");
   const againstBareLip = checkDistance(againstSkin.final, inputs.colors.lip_color, naturalLipGap, "lip", "lip");
   const lip = againstBareLip.final;
+
+  // The same lip, derived again with the depth adaptation switched off — accent, clash handling
+  // and both guards included, so the only difference between the two is the placement rule. A
+  // comparison that also changed the accent or skipped the guards would be comparing two engines
+  // rather than isolating the decision, and would not survive being looked at closely.
+  const conventionalInputs = { ...inputs, conventional: true };
+  let conventionalBase = shift(pickLipColour(conventionalInputs, register), {
+    h: accent.lipHue,
+    chroma: accent.lipChroma,
+    l: accent.lipLightness,
+  });
+  if (garment && clashesWith(hexToOklch(conventionalBase).h, garment)) {
+    conventionalBase = shift(conventionalBase, { chroma: 0.7 });
+  }
+  const conventionalLip = enforceDistance(
+    enforceDistance(conventionalBase, inputs.colors.skin_color, MIN_DISTANCE_FOR.lip!),
+    inputs.colors.lip_color,
+    naturalLipGap,
+  );
   // Both, in the order they ran. They answer different questions — whether the shade separates
   // from her face at all, and whether she could tell she had put anything on.
   const checks: ShadeCheck[] = [againstSkin, againstBareLip];
@@ -628,6 +653,7 @@ function buildEffects(
     palette,
     checks,
     placements,
+    conventionalLip,
     live: {
       lip,
       blush,
@@ -709,7 +735,7 @@ function fill(
   spec: LookTemplate,
   inputs: { colors: Measured; profile: ColourProfile; garment?: GarmentInfluence },
 ): FilledLook {
-  const { effects, palette, live, checks, placements } = buildEffects(spec, inputs);
+  const { effects, palette, live, checks, placements, conventionalLip } = buildEffects(spec, inputs);
   return {
     templateId: spec.id,
     label: spec.name,
@@ -722,6 +748,7 @@ function fill(
     blushIntensity: live.blushIntensity,
     checks,
     placements,
+    conventionalLip,
     palette,
     effects,
   };
