@@ -104,7 +104,7 @@ export default function ShadeSheet({ look, open, onClose }: ShadeSheetProps) {
         </ul>
 
         <p className="font-body border-t border-border px-6 py-4 text-xs leading-relaxed text-muted">
-          These are shades matched to your colouring, not products — take the values to a counter
+          These are shades matched to your colouring, not products. Take the values to a counter
           or a search box rather than expecting an exact bottle.
         </p>
       </div>

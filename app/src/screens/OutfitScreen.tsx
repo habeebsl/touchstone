@@ -152,7 +152,7 @@ export default function OutfitScreen({
           onClick={onSkip}
           className="font-body transition-interactive rounded-sm px-4 py-3 text-sm text-muted underline underline-offset-4 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
-          Skip — just show me what suits me
+          Skip and show me what suits me
         </button>
       </div>
     </MobileFrame>

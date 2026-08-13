@@ -726,7 +726,10 @@ function explain(spec: LookTemplate, profile: ColourProfile, garment?: GarmentIn
             : profile.contrast < 0.35
               ? "kept soft, like your colouring"
               : `built around your ${profile.undertone.toLowerCase()} undertone`;
-  return `${spec.note[0].toUpperCase()}${spec.note.slice(1)} — ${fit}.`;
+  // Two sentences rather than one joined by a dash. The note describes the look and the fit says
+  // why it was picked for her; they are separate claims and read better as separate sentences.
+  const note = `${spec.note[0].toUpperCase()}${spec.note.slice(1)}`;
+  return `${note}. ${fit[0].toUpperCase()}${fit.slice(1)}.`;
 }
 
 // --- Entry points ----------------------------------------------------------------------------

@@ -89,7 +89,7 @@ export default function ColouringSummary({ colors, profile }: ColouringSummaryPr
             {/* Said plainly, because the alternative is her assuming we checked a product against
                 her skin. We did not, and cannot. */}
             <p className="font-body mt-3 text-xs leading-relaxed text-muted">
-              We measure your colouring, not specific products — so this describes the shade to
+              We measure your colouring, not specific products, so this describes the shade to
               look for rather than naming one.
             </p>
           </Block>

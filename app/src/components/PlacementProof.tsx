@@ -59,7 +59,7 @@ export default function PlacementProof({
           </div>
 
           <p className="font-body mt-4 text-sm leading-relaxed text-muted">
-            Both are the {look.label} lip, derived the same way — same palette, same look, same
+            Both are the {look.label} lip, derived the same way: same palette, same look, same
             visibility checks. The only difference is that rule.
           </p>
 
@@ -82,7 +82,7 @@ export default function PlacementProof({
       ) : (
         <p className="font-body text-sm leading-relaxed text-muted">
           Makeup colour is normally placed below your skin&rsquo;s own lightness. On your colouring
-          there is room for that, so it needed no adjusting — the shades below are where both rules
+          there is room for that, so it needed no adjusting. The shades below are where both rules
           agree. It starts to matter on deeper skin, where there isn&rsquo;t room and the usual rule
           runs the colour toward black.
         </p>
