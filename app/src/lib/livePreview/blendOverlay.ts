@@ -380,17 +380,26 @@ export function lipPixel(
   const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
   const ratio = lum / mean;
 
-  // 1 through the mid-tones, falling away into the specular and the deep shadow. Those keep the
-  // original pixel: the highlight is the colour of the light, and the shadow is not lipstick.
+  // 1 through the mid-tones, falling away into the specular. The highlight is the colour of the
+  // light, not of the lipstick, and tinting it is what makes a lip read as a plastic shell.
   //
   // Judged on the ratio *and* on absolute brightness, because on pale lips the ratio alone
   // under-detects a highlight: when the mean is already bright there is little headroom above it,
   // so a genuine specular scores barely 1.6 and took a third of the lipstick's colour.
-  const nearWhite = Math.max(0, Math.min(1, (lum / 255 - 0.78) / 0.17));
+  //
+  // That absolute cutoff sat at 0.78 and was the reason the lip rendered as one band with the
+  // rest left bare. It does not adapt, so under a phone's brighter auto-exposure a wide stretch
+  // of ordinary lit lip scored above it and took no colour at all — and because nothing about it
+  // changes frame to frame, it looked stuck rather than settling. It now catches only pixels near
+  // genuine blowout.
+  const nearWhite = Math.max(0, Math.min(1, (lum / 255 - 0.9) / 0.08));
+  // Shadow keeps most of its colour. Lipstick in shadow is dark lipstick, not bare lip, and the
+  // relight below already carries the darkness — fading coverage out here as well was double
+  // counting, and it left the lip line and the corners of the mouth uncoloured.
+  const shadow = Math.max(0, (SHADOW_FROM - ratio) / 0.45) * SHADOW_FADE;
   const weight = Math.max(
     0,
-    Math.min(1, 1 - Math.max(0, (ratio - SPECULAR_FROM) / 0.5) - Math.max(0, (SHADOW_FROM - ratio) / 0.45)) *
-      (1 - nearWhite),
+    Math.min(1, 1 - Math.max(0, (ratio - SPECULAR_FROM) / 0.5) - shadow) * (1 - nearWhite),
   );
 
   const a = alpha * weight;
@@ -413,6 +422,8 @@ export function lipPixel(
 const SPECULAR_FROM = 1.25;
 /** And below this, it is shadow — the corners of the mouth, the line between the lips. */
 const SHADOW_FROM = 0.62;
+/** How much of its coverage a shadow gives up. Most of it is kept: it is still lipstick. */
+const SHADOW_FADE = 0.3;
 
 /** The pixel bounds of a set of landmarks, padded and clamped to the frame. */
 export function boundsOf(

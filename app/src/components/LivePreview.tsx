@@ -72,7 +72,11 @@ const LINER_FEATHER = 3;
 
 // The live mean is re-measured periodically rather than every frame: it tracks lighting, which
 // changes far more slowly than the frame rate, and each measurement costs a pixel readback.
-const MEAN_EVERY_N_FRAMES = 6;
+// Measured against the clock rather than a frame count. Counting frames tied how fast the shade
+// settles to how fast the device renders: at six frames a second, every-sixth-frame meant once a
+// second, so lighting took five times longer to track than it did at thirty — on exactly the
+// devices where the preview already felt slow to arrive.
+const MEAN_EVERY_MS = 200;
 // Eased, so a passing shadow or a single dark frame does not swing the whole region's colour.
 const MEAN_SMOOTHING = 0.25;
 
@@ -105,6 +109,10 @@ export default function LivePreview({
   const lipRoiRef = useRef<HTMLCanvasElement>(document.createElement("canvas"));
   const lipMeanRef = useRef<number | null>(null);
   const blushMeanRef = useRef<number | null>(null);
+  // When each region's mean was last measured, so the cadence follows the clock and not the
+  // frame rate. Separate, because the two regions are measured at different points in the frame.
+  const lipClockRef = useRef({ at: 0 });
+  const blushClockRef = useRef({ at: 0 });
   const frameRef = useRef(0);
   const timings = useRef({ detect: 0, blush: 0, lip: 0, frame: 16, last: 0, samples: 0 });
   // Only one of these is live. The worker is preferred; the inline landmarker is what runs if a
@@ -298,9 +306,16 @@ export default function LivePreview({
      * Keep the region's mean luminance current, falling back to what the analysis measured until
      * the first live reading lands.
      */
-    function updateMean(current: number | null, mask: HTMLCanvasElement, fallbackHex: string): number {
+    function updateMean(
+      current: number | null,
+      mask: HTMLCanvasElement,
+      fallbackHex: string,
+      clock: { at: number },
+    ): number {
       const canvas = canvasRef.current!;
-      if (current === null || frameRef.current % MEAN_EVERY_N_FRAMES === 0) {
+      const now = performance.now();
+      if (current === null || now - clock.at >= MEAN_EVERY_MS) {
+        clock.at = now;
         const measured = measureRegionLuminance(
           videoRef.current!,
           mask,
@@ -371,7 +386,7 @@ export default function LivePreview({
         const h = canvas.height;
 
         buildBlushMask(blushMaskRef.current.getContext("2d")!, landmarks, w, h);
-        blushMeanRef.current = updateMean(blushMeanRef.current, blushMaskRef.current, skinColor);
+        blushMeanRef.current = updateMean(blushMeanRef.current, blushMaskRef.current, skinColor, blushClockRef.current);
         compositeRegion(
           ctx,
           video,
@@ -385,7 +400,7 @@ export default function LivePreview({
         );
 
         buildLipMask(lipMaskRef.current.getContext("2d", { willReadFrequently: true })!, landmarks, w, h, FEATHER);
-        lipMeanRef.current = updateMean(lipMeanRef.current, lipMaskRef.current, lipBaseColor);
+        lipMeanRef.current = updateMean(lipMeanRef.current, lipMaskRef.current, lipBaseColor, lipClockRef.current);
 
         // Per pixel, and only over the mouth: a blend mode cannot leave the specular alone, and
         // leaving it alone is the difference between lipstick and a plastic shell. Liner is a
