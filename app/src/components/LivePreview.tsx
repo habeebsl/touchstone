@@ -36,7 +36,10 @@ interface LivePreviewProps {
   onStats?: (stats: string) => void;
 }
 
-const WASM_BASE = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm";
+// Served from the installed package by the mediapipe-wasm plugin in vite.config.ts, not a CDN:
+// the glue code and the wasm have to be the same version or detection silently falls back to a
+// slower build. See the note there.
+const WASM_BASE = "/mediapipe";
 const MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
 
@@ -70,6 +73,9 @@ const MEAN_EVERY_N_FRAMES = 6;
 // Eased, so a passing shadow or a single dark frame does not swing the whole region's colour.
 const MEAN_SMOOTHING = 0.25;
 
+// Frames excluded from the timing averages while the model warms up.
+const WARMUP_FRAMES = 5;
+
 /** The product's actual live preview: tap a look, see its lip + blush colors live. No user
  * controls — unlike LipBlendSpike, this renders whatever look was selected upstream. */
 export default function LivePreview({
@@ -97,7 +103,7 @@ export default function LivePreview({
   const lipMeanRef = useRef<number | null>(null);
   const blushMeanRef = useRef<number | null>(null);
   const frameRef = useRef(0);
-  const timings = useRef({ detect: 0, blush: 0, lip: 0, frame: 16, last: 0 });
+  const timings = useRef({ detect: 0, blush: 0, lip: 0, frame: 16, last: 0, samples: 0 });
   const landmarkerRef = useRef<FaceLandmarker | null>(null);
   // Previous frame's smoothed landmarks, so the overlay edge stops shimmering between detections.
   const smoothedRef = useRef<NormalizedLandmark[] | null>(null);
@@ -247,13 +253,22 @@ export default function LivePreview({
         recolourLip(ctx, video, lipRoiRef.current, lipBox, layers, lipMeanRef.current);
 
         // Rolling averages: a single frame says nothing, and the stall being hunted is
-        // intermittent.
+        // intermittent. The opening frames are dropped and the average is seeded from the first
+        // one kept — model warm-up costs hundreds of milliseconds, and folded into a 0.1 average
+        // it inflates the reading for seconds, which is long enough to be read off the screen and
+        // acted on.
         const now = performance.now();
-        timings.current.detect += (tDetect - tStart - timings.current.detect) * 0.1;
-        timings.current.blush += (tBeforeLip - tDetect - timings.current.blush) * 0.1;
-        timings.current.lip += (now - tBeforeLip - timings.current.lip) * 0.1;
-        timings.current.frame += (now - (timings.current.last || now) - timings.current.frame) * 0.1;
-        timings.current.last = now;
+        const t = timings.current;
+        t.samples++;
+        if (t.samples > WARMUP_FRAMES) {
+          const seed = t.samples === WARMUP_FRAMES + 1;
+          const ease = (prev: number, next: number) => (seed ? next : prev + (next - prev) * 0.1);
+          t.detect = ease(t.detect, tDetect - tStart);
+          t.blush = ease(t.blush, tBeforeLip - tDetect);
+          t.lip = ease(t.lip, now - tBeforeLip);
+          t.frame = ease(t.frame, now - (t.last || now));
+        }
+        t.last = now;
 
         if (frameRef.current % 15 === 0) {
           const t = timings.current;
