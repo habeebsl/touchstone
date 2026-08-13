@@ -11,8 +11,7 @@ const OUTER_LIPS = [
 ];
 
 const WASM_BASE = "/mediapipe";
-const MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+const MODEL_URL = "/models/face_landmarker.task";
 
 type BlendMode = "multiply" | "soft-light";
 

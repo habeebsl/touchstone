@@ -60,7 +60,12 @@ function within<T>(work: Promise<T>, ms: number, label: string): Promise<T> {
   });
 }
 
-const STEP_TIMEOUT = 8_000;
+// Generous, because this has to cover loading and compiling the model on a slow device, not just
+// spotting a hang. Eight seconds was under that: the GPU attempt was reported as hung when it may
+// only have been mid-download, which threw away the real reason. Nothing waits on this any more —
+// the camera opens independently — so the cost of being patient is only that a genuine hang takes
+// longer to name.
+const STEP_TIMEOUT = 25_000;
 
 let landmarker: FaceLandmarker | null = null;
 

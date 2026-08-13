@@ -41,8 +41,10 @@ interface LivePreviewProps {
 // the glue code and the wasm have to be the same version or detection silently falls back to a
 // slower build. See the note there.
 const WASM_BASE = "/mediapipe";
-const MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+// Served from public/ rather than storage.googleapis.com. It is 3.7MB, and on a phone the cold
+// download was landing inside the worker's startup — the main thread's fallback only ever looked
+// fast because by then the file was in cache. Also means the demo does not need the network.
+const MODEL_URL = "/models/face_landmarker.task";
 
 // Relighting preserves the region's own variation, so it can run strong without flattening it.
 // Lipstick is opaque and deliberate — leaving 15% of the bare lip showing through was reading as
@@ -167,9 +169,12 @@ export default function LivePreview({
           resolve(`inline(${why})`);
         };
 
-        // If the worker cannot report ready, fall back rather than leave a preview that never
-        // starts. Model fetch and compile dominate this, hence the generous window.
-        const timeout = setTimeout(() => giveUp(`timeout@${stage}`), 20_000);
+        // A backstop for a worker that stops responding entirely, not a budget for startup — the
+        // worker times its own steps and reports which one failed. This has to sit clear of the
+        // sum of those, or it fires first and discards the reasons it exists to surface: at 20s
+        // against two 8s steps it reported "timeout@CPU" and lost both delegates' errors. Nothing
+        // waits on it now that the camera starts independently.
+        const timeout = setTimeout(() => giveUp(`timeout@${stage}`), 90_000);
 
         worker.onerror = (event) => giveUp(`load: ${event.message || "failed"}`);
 
