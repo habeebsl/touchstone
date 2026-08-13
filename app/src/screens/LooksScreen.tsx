@@ -5,6 +5,8 @@ import { TEMPLATE_COUNT, type FilledLook } from "../lib/colorEngine/template";
 import type { ColourProfile } from "../lib/colorEngine/season";
 import type { NormalisedColors } from "../lib/colorEngine/normalise";
 
+const REGISTER_ORDER = { soft: 0, polished: 1, bold: 2 } as const;
+
 export interface RenderedLook {
   look: FilledLook;
   /** Pre-signed URL from Makeup VTO. Expires in 2 hours — never treated as durable. */
@@ -50,6 +52,10 @@ export default function LooksScreen({
   onStartOver,
   onImageExpired,
 }: LooksScreenProps) {
+  const boldest =
+    [...looks].sort((a, b) => REGISTER_ORDER[b.look.register] - REGISTER_ORDER[a.look.register])[0];
+  const lipPlacement = boldest?.look.placements.find((p) => p.role === "lip") ?? null;
+
   return (
     <MobileShell>
       <section className="mb-10 mt-12">
@@ -61,7 +67,10 @@ export default function LooksScreen({
         </p>
       </section>
 
-      <ColouringSummary colors={colors} profile={profile} />
+      {/* The boldest look on show, because that is where the placement rule bites hardest — a
+          soft register sits close to her own colouring either way, so it makes the weakest case
+          for a decision that is real. */}
+      <ColouringSummary colors={colors} profile={profile} placement={lipPlacement} />
 
       <div className="flex flex-col gap-10 pb-12">
         {looks.map((rendered) => (
