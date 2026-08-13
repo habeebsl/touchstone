@@ -20,7 +20,7 @@ export type ToWorker =
   | { type: "frame"; bitmap: ImageBitmap; timestamp: number };
 
 export type FromWorker =
-  | { type: "ready" }
+  | { type: "ready"; delegate: "GPU" | "CPU" }
   | { type: "error"; message: string }
   | { type: "landmarks"; landmarks: NormalizedLandmark[] | null; cost: number };
 
@@ -32,18 +32,34 @@ self.onmessage = async (event: MessageEvent<ToWorker>) => {
   const message = event.data;
 
   if (message.type === "init") {
+    let vision;
     try {
-      const vision = await FilesetResolver.forVisionTasks(message.wasmBase);
-      landmarker = await FaceLandmarker.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: message.modelUrl, delegate: "GPU" },
-        runningMode: "VIDEO",
-        numFaces: 1,
-      });
-      post({ type: "ready" });
+      vision = await FilesetResolver.forVisionTasks(message.wasmBase);
     } catch (err) {
-      // Reported rather than thrown: the main thread keeps a working inline path to fall back to,
-      // and a preview that runs slowly beats one that does not run.
-      post({ type: "error", message: err instanceof Error ? err.message : String(err) });
+      post({ type: "error", message: `wasm: ${err instanceof Error ? err.message : String(err)}` });
+      return;
+    }
+
+    // The GPU delegate needs a WebGL2 context inside the worker, which not every browser grants
+    // even when the page itself has one. Falling straight back to inline on that would give up
+    // the whole point of the worker: CPU inference off the render thread still leaves the frame
+    // free, it just detects less often.
+    for (const delegate of ["GPU", "CPU"] as const) {
+      try {
+        landmarker = await FaceLandmarker.createFromOptions(vision, {
+          baseOptions: { modelAssetPath: message.modelUrl, delegate },
+          runningMode: "VIDEO",
+          numFaces: 1,
+        });
+        post({ type: "ready", delegate });
+        return;
+      } catch (err) {
+        if (delegate === "CPU") {
+          // Reported rather than thrown: the main thread keeps a working inline path, and a
+          // preview that runs slowly beats one that does not run.
+          post({ type: "error", message: `${delegate}: ${err instanceof Error ? err.message : String(err)}` });
+        }
+      }
     }
     return;
   }

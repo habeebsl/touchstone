@@ -133,48 +133,49 @@ export default function LivePreview({
     let cancelled = false;
 
     /**
-     * Hand detection to a worker, resolving false if one cannot be stood up. The absolute URL
-     * form is what lets Vite bundle the worker; a bare path would not survive the build.
+     * Hand detection to a worker, resolving a label describing what happened. The label reaches
+     * the on-screen readout rather than the console, because the device this matters on is a
+     * phone and a console.error there is unreadable — the first attempt fell back silently and
+     * cost a round trip to find out.
+     *
+     * The absolute URL form is what lets Vite bundle the worker; a bare path would not survive
+     * the build.
      */
-    function startWorker(): Promise<boolean> {
+    function startWorker(): Promise<string> {
       return new Promise((resolve) => {
         let worker: Worker;
         try {
           worker = new Worker(new URL("../lib/livePreview/landmarkerWorker.ts", import.meta.url), {
             type: "module",
           });
-        } catch {
-          resolve(false);
+        } catch (err) {
+          resolve(`inline(spawn: ${err instanceof Error ? err.message : String(err)})`);
           return;
         }
 
-        // If the worker cannot report ready, fall back rather than leave a preview that never
-        // starts. Model fetch and compile dominate this, hence the generous window.
-        const timeout = setTimeout(() => {
-          worker.terminate();
-          resolve(false);
-        }, 20_000);
-
-        worker.onerror = () => {
+        const giveUp = (why: string) => {
           clearTimeout(timeout);
           worker.terminate();
-          resolve(false);
+          workerRef.current = null;
+          resolve(`inline(${why})`);
         };
+
+        // If the worker cannot report ready, fall back rather than leave a preview that never
+        // starts. Model fetch and compile dominate this, hence the generous window.
+        const timeout = setTimeout(() => giveUp("timeout"), 20_000);
+
+        worker.onerror = (event) => giveUp(`load: ${event.message || "failed"}`);
 
         worker.onmessage = (event: MessageEvent<FromWorker>) => {
           const message = event.data;
           if (message.type === "ready") {
             clearTimeout(timeout);
             workerRef.current = worker;
-            resolve(true);
+            resolve(`worker:${message.delegate}`);
             return;
           }
           if (message.type === "error") {
-            clearTimeout(timeout);
-            console.error("landmarker worker:", message.message);
-            worker.terminate();
-            workerRef.current = null;
-            resolve(false);
+            giveUp(message.message);
             return;
           }
           if (message.type === "landmarks") {
@@ -219,10 +220,10 @@ export default function LivePreview({
     }
 
     async function setup() {
-      const onWorker = await startWorker();
+      const how = await startWorker();
       if (cancelled) return;
 
-      if (!onWorker) {
+      if (!workerRef.current) {
         // Inline: detection blocks the frame, which on a slow device is the 6fps behaviour the
         // worker exists to avoid. Still better than a blank preview.
         const vision = await FilesetResolver.forVisionTasks(WASM_BASE);
@@ -247,8 +248,7 @@ export default function LivePreview({
         `${gl ? "webgl2" : "NO webgl2"} · ` +
         `${wasm?.split("/").pop()?.replace("vision_wasm_", "").replace("_internal.wasm", "") ?? "wasm?"} · ` +
         `${(navigator as { deviceMemory?: number }).deviceMemory ?? "?"}GB · ` +
-        `${navigator.hardwareConcurrency ?? "?"} cores · ` +
-        `${onWorker ? "worker" : "inline"}`;
+        `${navigator.hardwareConcurrency ?? "?"} cores · ${how}`;
 
       const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
       if (cancelled) {
