@@ -49,7 +49,7 @@ export default function LivePreviewScreen({ rendered, skinColor, lipBaseColor, o
 
         {/* Timings, so a stall can be reported as numbers rather than as "it feels slow". */}
         {stats && (
-          <p className="font-label pointer-events-none absolute left-1/2 top-20 -translate-x-1/2 whitespace-nowrap rounded bg-black/60 px-2 py-1 text-[0.6rem] text-white/80">
+          <p className="font-label pointer-events-none absolute inset-x-3 top-20 rounded bg-black/60 px-2 py-1 text-center text-[0.6rem] leading-relaxed text-white/80">
             {stats}
           </p>
         )}
