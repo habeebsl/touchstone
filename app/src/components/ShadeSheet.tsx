@@ -29,9 +29,12 @@ const PALETTE_ROWS: Array<{ key: string; label: string; note: string }> = [
  * The full palette, on demand.
  *
  * A sheet rather than a screen: ten shades with their values is reference material, not a step
- * in the flow, and a screen would put a mandatory stop between the looks and the live preview —
- * which is the payoff. It also keeps it off the cards, where three swatches and their values
- * already overflowed, and off the camera, where it competed with what she was looking at.
+ * in the flow, and it keeps the values off the cards, where three swatches and their hexes
+ * already overflowed.
+ *
+ * Opened from a look card. It used to be reachable only from behind the live camera view, which
+ * has since been removed — so the shades were the one place the engine's choices were legible and
+ * they sat behind the weakest thing in the product.
  */
 export default function ShadeSheet({ look, open, onClose }: ShadeSheetProps) {
   const panelRef = useRef<HTMLDivElement>(null);

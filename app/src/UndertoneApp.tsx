@@ -3,7 +3,6 @@ import CameraKitMount from "./components/CameraKitMount";
 import IntroScreen from "./screens/IntroScreen";
 import AnalysingScreen from "./screens/AnalysingScreen";
 import LooksScreen, { type RenderedLook } from "./screens/LooksScreen";
-import LivePreviewScreen from "./screens/LivePreviewScreen";
 import OutfitScreen from "./screens/OutfitScreen";
 import { useCameraKit } from "./lib/cameraKit/useCameraKit";
 import { YouCamClient } from "./lib/youcam/client";
@@ -29,7 +28,7 @@ const SECRET_KEY = import.meta.env.VITE_YOUCAM_SECRET_KEY as string | undefined;
  */
 const FIXTURE = getFixture(new URLSearchParams(window.location.search).get("fixture"));
 
-type Stage = "intro" | "analysing" | "outfit" | "looks" | "live";
+type Stage = "intro" | "analysing" | "outfit" | "looks";
 
 /**
  * How many of the ten templates each person is shown.
@@ -63,7 +62,6 @@ export default function UndertoneApp() {
   );
   const [profile, setProfile] = useState<ColourProfile | null>(restored?.profile ?? null);
   const [looks, setLooks] = useState<RenderedLook[]>(restored?.looks ?? []);
-  const [selected, setSelected] = useState<RenderedLook | null>(null);
   const [stepsDone, setStepsDone] = useState(0);
   const [status, setStatus] = useState("Uploading your photo");
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +84,6 @@ export default function UndertoneApp() {
     setMeasured(null);
     setProfile(null);
     setLooks([]);
-    setSelected(null);
     setStepsDone(0);
     setStatus("Uploading your photo");
     setError(null);
@@ -286,21 +283,10 @@ export default function UndertoneApp() {
           colors={measured}
           profile={profile}
           onStartOver={reset}
-          onSelect={(rendered) => {
-            setSelected(rendered);
-            setStage("live");
-          }}
           onImageExpired={() => {
             clearSession();
             setError("Your looks have expired. Renders are only kept for a couple of hours.");
           }}
-        />
-      ) : selected && measured ? (
-        <LivePreviewScreen
-          rendered={selected}
-          skinColor={measured.skin_color}
-          lipBaseColor={measured.lip_color}
-          onBack={() => setStage("looks")}
         />
       ) : null}
     </>

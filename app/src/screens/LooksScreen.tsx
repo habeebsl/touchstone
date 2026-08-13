@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import Swatch from "../components/ui/Swatch";
 import ColouringSummary from "../components/ColouringSummary";
+import ShadeSheet from "../components/ShadeSheet";
 import { TEMPLATE_COUNT, type FilledLook } from "../lib/colorEngine/template";
 import type { ColourProfile } from "../lib/colorEngine/season";
 import type { NormalisedColors } from "../lib/colorEngine/normalise";
@@ -18,7 +19,6 @@ interface LooksScreenProps {
   /** What the analysis measured and derived, summarised above the looks. */
   colors: NormalisedColors;
   profile: ColourProfile;
-  onSelect: (rendered: RenderedLook) => void;
   /** Discards this analysis and returns to the start. Costs 35 API units to redo — see below. */
   onStartOver: () => void;
   /** Fires when a render URL no longer loads — they are pre-signed and expire after 2 hours. */
@@ -48,10 +48,13 @@ export default function LooksScreen({
   looks,
   colors,
   profile,
-  onSelect,
   onStartOver,
   onImageExpired,
 }: LooksScreenProps) {
+  // Tapping a look opens its shades. It used to open the live camera view, which has been
+  // removed: a half-working AR filter was the weakest thing in the product and invited comparison
+  // with the sponsor's own shipped app. The shades were reachable only from behind it.
+  const [shades, setShades] = useState<RenderedLook | null>(null);
   const boldest =
     [...looks].sort((a, b) => REGISTER_ORDER[b.look.register] - REGISTER_ORDER[a.look.register])[0];
   const lipPlacement = boldest?.look.placements.find((p) => p.role === "lip") ?? null;
@@ -77,7 +80,7 @@ export default function LooksScreen({
           <button
             key={rendered.look.templateId}
             type="button"
-            onClick={() => onSelect(rendered)}
+            onClick={() => setShades(rendered)}
             className="transition-interactive group w-full overflow-hidden rounded-lg border border-border bg-surface text-left hover:-translate-y-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             {/* Aspect ratio reserved so the arriving render never shifts layout. */}
@@ -123,6 +126,8 @@ export default function LooksScreen({
           Start over with a new photo
         </button>
       </div>
+
+      {shades && <ShadeSheet look={shades.look} open onClose={() => setShades(null)} />}
     </MobileShell>
   );
 }

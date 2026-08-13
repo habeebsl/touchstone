@@ -90,8 +90,18 @@ const MEAN_SMOOTHING = 0.25;
 // Frames excluded from the timing averages while the model warms up.
 const WARMUP_FRAMES = 5;
 
-/** The product's actual live preview: tap a look, see its lip + blush colors live. No user
- * controls — unlike LipBlendSpike, this renders whatever look was selected upstream. */
+/**
+ * Live lip and blush on the camera feed.
+ *
+ * No longer in the product. It was cut before submission: on a mid-range phone MediaPipe's face
+ * landmarking costs ~113ms a frame, which held the preview at 6fps, and even rendering correctly
+ * it read as a filter rather than as makeup. Both are hard to fix and neither is what this
+ * project is actually about — and Perfect Corp's own shipped app does live AR makeup well, so
+ * showing them a worse version of it argued against us.
+ *
+ * Kept because EndToEndSpike still exercises it and the compositing work is sound: the per-pixel
+ * relight in blendOverlay.ts, and the finding that a lit lip must not be mistaken for a specular.
+ */
 export default function LivePreview({
   lipColor,
   blushColor,
