@@ -31,12 +31,15 @@ import type {
 import { analyseColouring, type ColourProfile, type Season } from "./season";
 import type { NormalisedColors } from "./normalise";
 import {
+  checkDistance,
   enforceDistance,
   MIN_DISTANCE_FOR,
   MIN_FROM_NATURAL_LIP,
   pickColour,
   pickLipColour,
   type Register,
+  type Placement,
+  type ShadeCheck,
 } from "./palette";
 import { hexToOklch, mixOklch, oklchToHex } from "./oklch";
 import { clashesWith, intensityShift, type GarmentInfluence } from "../garment/influence";
@@ -64,6 +67,21 @@ export interface FilledLook {
    */
   lipIntensity: number;
   blushIntensity: number;
+  /**
+   * What the visibility guard did to each shade, in the order it ran.
+   *
+   * The engine already computed all of this and discarded it. Kept, it is the product's own
+   * evidence: the shade the palette first proposed, how far it sat from her skin or her bare
+   * lips, the floor it had to clear, and what replaced it when it didn't. Shown to her rather
+   * than logged, because a recommender that claims to check its work should be able to show it.
+   */
+  checks: ShadeCheck[];
+  /**
+   * Where each shade was placed, against where the conventional "sit below the skin" rule would
+   * have put it. This is the part that adapts to measured depth, and on deep skin it is the
+   * difference between a vivid shade and something close to black.
+   */
+  placements: Placement[];
   /** Every colour the render carries, for display and debugging. */
   palette: Record<string, string>;
   effects: MakeupEffect[];
@@ -369,6 +387,8 @@ function buildEffects(
 ): {
   effects: MakeupEffect[];
   palette: Record<string, string>;
+  checks: ShadeCheck[];
+  placements: Placement[];
   live: { lip: string; blush: string; lipIntensity: number; blushIntensity: number };
 } {
   const { register } = spec;
@@ -409,15 +429,21 @@ function buildEffects(
     MIN_VISIBLE_LIP,
     MIN_FROM_NATURAL_LIP[register] * (accent.lipChroma ?? 1),
   );
-  const lip = enforceDistance(
-    enforceDistance(lipBase, inputs.colors.skin_color, MIN_DISTANCE_FOR.lip!),
-    inputs.colors.lip_color,
-    naturalLipGap,
-  );
+  const againstSkin = checkDistance(lipBase, inputs.colors.skin_color, MIN_DISTANCE_FOR.lip!, "lip", "skin");
+  const againstBareLip = checkDistance(againstSkin.final, inputs.colors.lip_color, naturalLipGap, "lip", "lip");
+  const lip = againstBareLip.final;
+  // Both, in the order they ran. They answer different questions — whether the shade separates
+  // from her face at all, and whether she could tell she had put anything on.
+  const checks: ShadeCheck[] = [againstSkin, againstBareLip];
+  // Where the lip was placed, against where the conventional rule would have put it. Collected
+  // from a fresh pick because pickLipColour blends the palette's choice with her measured lips —
+  // this records the palette's placement decision, which is the part that adapts to depth.
+  const placements: Placement[] = [];
+  pickColour(inputs, "lip", register, undefined, placements);
 
-  let blush = pickColour(inputs, "blush", register);
+  let blush = pickColour(inputs, "blush", register, checks, placements);
   const shadowBase = pickColour(inputs, "eyeshadowBase", register);
-  let shadowAccent = shift(pickColour(inputs, "eyeshadowAccent", register), {
+  let shadowAccent = shift(pickColour(inputs, "eyeshadowAccent", register, checks), {
     h: accent.shadowHue,
     chroma: accent.shadowChroma,
   });
@@ -600,6 +626,8 @@ function buildEffects(
   return {
     effects,
     palette,
+    checks,
+    placements,
     live: {
       lip,
       blush,
@@ -681,7 +709,7 @@ function fill(
   spec: LookTemplate,
   inputs: { colors: Measured; profile: ColourProfile; garment?: GarmentInfluence },
 ): FilledLook {
-  const { effects, palette, live } = buildEffects(spec, inputs);
+  const { effects, palette, live, checks, placements } = buildEffects(spec, inputs);
   return {
     templateId: spec.id,
     label: spec.name,
@@ -692,6 +720,8 @@ function fill(
     blushColor: live.blush,
     lipIntensity: live.lipIntensity,
     blushIntensity: live.blushIntensity,
+    checks,
+    placements,
     palette,
     effects,
   };
