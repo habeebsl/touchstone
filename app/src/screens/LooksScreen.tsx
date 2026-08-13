@@ -79,20 +79,7 @@ export default function LooksScreen({
 
       <ColouringSummary colors={colors} profile={profile} />
 
-      {/* The boldest look on show, because that is where the placement rule bites hardest — a
-          soft register sits close to her own colouring under either rule, so it makes the weakest
-          case for a decision that is real. */}
-      {boldest && (
-        <PlacementProof
-          look={boldest.look}
-          adaptedUrl={boldest.imageUrl}
-          conventionalUrl={comparisonUrl}
-          busy={comparing}
-          onRender={() => onCompare(boldest.look)}
-        />
-      )}
-
-      <div className="flex flex-col gap-10 pb-12">
+      <div className="flex flex-col gap-10">
         {looks.map((rendered) => (
           <button
             key={rendered.look.templateId}
@@ -132,6 +119,25 @@ export default function LooksScreen({
         ))}
       </div>
 
+      {/* Below the looks, not above them. It is evidence, and evidence reads better after the
+          thing it is evidence for: it names a look ("both are the Glazed lip"), which only
+          resolves once that look has been seen, and putting a technical exhibit — two rendered
+          faces — in front of the payoff delayed exactly what ColouringSummary collapses itself to
+          avoid delaying.
+
+          The boldest look on show, because that is where the placement rule bites hardest: a soft
+          register sits close to her own colouring under either rule and makes the weakest case for
+          a decision that is real. */}
+      {boldest && (
+        <PlacementProof
+          look={boldest.look}
+          adaptedUrl={boldest.imageUrl}
+          conventionalUrl={comparisonUrl}
+          busy={comparing}
+          onRender={() => onCompare(boldest.look)}
+        />
+      )}
+
       {/* Placed after the looks, quiet, and named for its consequence — it is destructive and
           requires retaking the photo. Never the first thing a thumb finds. */}
       <div className="flex justify-center pb-12 pt-2">
@@ -143,6 +149,7 @@ export default function LooksScreen({
           Start over with a new photo
         </button>
       </div>
+
 
       {shades && <ShadeSheet look={shades.look} open onClose={() => setShades(null)} />}
     </MobileShell>

@@ -41,7 +41,7 @@ export default function PlacementProof({
   const differs = look.conventionalLip !== look.lipColor;
 
   return (
-    <section className="mb-8 rounded-lg border border-border bg-surface px-5 py-4">
+    <section className="mt-10 rounded-lg border border-border bg-surface px-5 py-4">
       <h2 className="font-label mb-3 text-xs uppercase tracking-widest text-muted">
         How your shades were placed
       </h2>

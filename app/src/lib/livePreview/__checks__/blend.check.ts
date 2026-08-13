@@ -54,7 +54,12 @@ for (const fx of ANALYSIS_FIXTURES) {
       // off lightly. What may never happen is a lipstick you cannot see at all, and that is the
       // floor under the scaling, which is the failure this whole check exists for on deep tones.
       ["lip", look.lipColor, fx.colors.lip_color, look.lipIntensity, Math.max(0.038, 0.05 * (look.lipIntensity / 0.7)), 0.1],
-      ["blush", look.blushColor, skin, look.blushIntensity, 0.02, 0.1],
+      // Blush had a 0.02 floor while the lip had 0.05 — less than half the bar, set back when the
+      // live layer composited blush at a fixed 0.4 and never revisited for the API render. Worn at
+      // the look's own intensity it was landing at 0.022 on the fairest fixture: applied, rendered,
+      // and invisible. Which is the exact failure this project quotes at the industry, so it does
+      // not get to be the one shipping it.
+      ["blush", look.blushColor, skin, look.blushIntensity, 0.033, 0.1],
     ] as const) {
       const out = predictComposite(mean, color, mean, intensity);
       const visible = deltaE(out, mean);

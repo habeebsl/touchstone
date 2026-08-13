@@ -174,7 +174,7 @@ const TEMPLATES: LookTemplate[] = [
     accent: { lipChroma: 0.8 },
     smooth: 58,
     lip: { texture: "sheer", intensity: 40, shape: "original" },
-    blush: { pattern: "1color1", intensity: 26 }, // Blush 3D, oblong — a wash, not a shape
+    blush: { pattern: "1color1", intensity: 39 }, // Blush 3D, oblong — a wash, not a shape
     brow: { pattern: "Original2", curvature: 0, thickness: 0, definition: 30, intensity: 35 },
   },
   {
@@ -186,7 +186,7 @@ const TEMPLATES: LookTemplate[] = [
     lashes: { pattern: "Natural1", intensity: 62 },
     smooth: 45,
     lip: { texture: "satin", intensity: 58, shape: "original" },
-    blush: { pattern: "1color1", intensity: 38 },
+    blush: { pattern: "1color1", intensity: 57 },
     eyeshadow: { pattern: "1color9", colors: 1, intensity: 32 }, // single wash, whole eye
     liner: { pattern: "Lower1", intensity: 25 },
     brow: { pattern: "Original2", curvature: 0, thickness: 0, definition: 35, intensity: 45 },
@@ -202,7 +202,7 @@ const TEMPLATES: LookTemplate[] = [
     lashes: { pattern: "Upper&Lower4", intensity: 88 },
     smooth: 52,
     lip: { texture: "satin", intensity: 50, shape: "original" },
-    blush: { pattern: "1color1", intensity: 32 },
+    blush: { pattern: "1color1", intensity: 48 },
     brow: { pattern: "SoftArch1", curvature: 5, thickness: 0, definition: 40, intensity: 42 },
   },
   {
@@ -215,7 +215,7 @@ const TEMPLATES: LookTemplate[] = [
     lashes: { pattern: "Natural1", intensity: 60 },
     smooth: 48,
     lip: { texture: "satin", intensity: 62, shape: "original" },
-    blush: { pattern: "Round1", intensity: 44 },
+    blush: { pattern: "Round1", intensity: 66 },
     eyeshadow: { pattern: "1color9", colors: 1, intensity: 40 },
     brow: { pattern: "SoftArch1", curvature: 5, thickness: 0, definition: 40, intensity: 45 },
     highlighter: { pattern: "OvalFace2", intensity: 30, glow: 40 },
@@ -231,7 +231,7 @@ const TEMPLATES: LookTemplate[] = [
     lashes: { pattern: "Wispies1", intensity: 66 },
     smooth: 62,
     lip: { texture: "gloss", intensity: 55, shape: "plump", fullness: 35 },
-    blush: { pattern: "Oblique1", intensity: 40 },
+    blush: { pattern: "Oblique1", intensity: 60 },
     eyeshadow: { pattern: "1color9", colors: 1, intensity: 26 },
     brow: { pattern: "SoftArch1", curvature: 5, thickness: 5, definition: 45, intensity: 45 },
     highlighter: { pattern: "OvalFace2", intensity: 55, glow: 70 },
@@ -246,7 +246,7 @@ const TEMPLATES: LookTemplate[] = [
     lipLiner: { pattern: "Natural1", intensity: 55, thickness: 45, smoothness: 55 },
     smooth: 50,
     lip: { texture: "matte", intensity: 74, shape: "original" },
-    blush: { pattern: "Oblique1", intensity: 46 },
+    blush: { pattern: "Oblique1", intensity: 69 },
     eyeshadow: { pattern: "2colors1", colors: 2, intensity: 48 }, // fan shape, upper lid
     liner: { pattern: "OpenWings1", intensity: 55 },
     brow: { pattern: "SoftArch1", curvature: 10, thickness: 5, definition: 55, intensity: 50 },
@@ -264,7 +264,7 @@ const TEMPLATES: LookTemplate[] = [
     lashes: { pattern: "UpperDense1", intensity: 74 },
     smooth: 50,
     lip: { texture: "satin", intensity: 66, shape: "original" },
-    blush: { pattern: "Oblique1", intensity: 50 },
+    blush: { pattern: "Oblique1", intensity: 72 },
     eyeshadow: { pattern: "3colors103", colors: 3, intensity: 55 }, // closed banana — blended socket
     liner: { pattern: "Smoke11", intensity: 40 },
     brow: { pattern: "SoftArch1", curvature: 8, thickness: 8, definition: 55, intensity: 50 },
@@ -281,7 +281,7 @@ const TEMPLATES: LookTemplate[] = [
     lashes: { pattern: "Winged1", intensity: 82 },
     smooth: 48,
     lip: { texture: "satin", intensity: 58, shape: "original" },
-    blush: { pattern: "Oblique1", intensity: 38 },
+    blush: { pattern: "Oblique1", intensity: 57 },
     eyeshadow: { pattern: "2colors40", colors: 2, intensity: 52 }, // cat eye
     liner: { pattern: "OpenWings2", intensity: 72 },
     brow: { pattern: "HighArch1", curvature: 15, thickness: 8, definition: 62, intensity: 52 },
@@ -298,7 +298,7 @@ const TEMPLATES: LookTemplate[] = [
     lashes: { pattern: "Upper&Lower1", intensity: 78 },
     smooth: 50,
     lip: { texture: "satin", intensity: 55, shape: "original" },
-    blush: { pattern: "Oblique1", intensity: 36 },
+    blush: { pattern: "Oblique1", intensity: 54 },
     eyeshadow: { pattern: "2colors167", colors: 2, intensity: 68 }, // cut crease
     liner: { pattern: "OpenWings1", intensity: 62 },
     brow: { pattern: "HighArch1", curvature: 18, thickness: 10, definition: 70, intensity: 55 },
@@ -315,7 +315,7 @@ const TEMPLATES: LookTemplate[] = [
     lashes: { pattern: "UpperDense1", intensity: 85 },
     smooth: 50,
     lip: { texture: "satin", intensity: 52, shape: "original" },
-    blush: { pattern: "Oblique1", intensity: 40 },
+    blush: { pattern: "Oblique1", intensity: 60 },
     eyeshadow: { pattern: "3colors100", colors: 3, intensity: 72 }, // smokey, whole eye
     liner: { pattern: "PandaSmudge1", intensity: 70 },
     brow: { pattern: "HighArch1", curvature: 18, thickness: 12, definition: 68, intensity: 55 },
@@ -333,7 +333,7 @@ const TEMPLATES: LookTemplate[] = [
     lipLiner: { pattern: "Large&Full1", intensity: 72, thickness: 62, smoothness: 40 },
     smooth: 50,
     lip: { texture: "matte", intensity: 92, shape: "original" },
-    blush: { pattern: "Oblique1", intensity: 44 },
+    blush: { pattern: "Oblique1", intensity: 66 },
     eyeshadow: { pattern: "1color9", colors: 1, intensity: 30 },
     liner: { pattern: "OpenWings2", intensity: 60 },
     brow: { pattern: "HighArch1", curvature: 20, thickness: 12, definition: 72, intensity: 55 },
