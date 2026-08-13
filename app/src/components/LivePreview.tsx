@@ -32,6 +32,8 @@ interface LivePreviewProps {
   /** Applied to the output canvas so the parent controls framing (full-bleed vs boxed). */
   className?: string;
   onStatusChange?: (status: string) => void;
+  /** Per-stage timings, so a stall can be attributed rather than guessed at. */
+  onStats?: (stats: string) => void;
 }
 
 const WASM_BASE = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm";
@@ -79,6 +81,7 @@ export default function LivePreview({
   lipBaseColor,
   className = "",
   onStatusChange,
+  onStats,
 }: LivePreviewProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -94,6 +97,7 @@ export default function LivePreview({
   const lipMeanRef = useRef<number | null>(null);
   const blushMeanRef = useRef<number | null>(null);
   const frameRef = useRef(0);
+  const timings = useRef({ detect: 0, blush: 0, lip: 0, frame: 16, last: 0 });
   const landmarkerRef = useRef<FaceLandmarker | null>(null);
   // Previous frame's smoothed landmarks, so the overlay edge stops shimmering between detections.
   const smoothedRef = useRef<NormalizedLandmark[] | null>(null);
@@ -103,6 +107,9 @@ export default function LivePreview({
   const onStatusChangeRef = useRef(onStatusChange);
   onStatusChangeRef.current = onStatusChange;
   const setStatus = (next: string) => onStatusChangeRef.current?.(next);
+
+  const onStatsRef = useRef(onStats);
+  onStatsRef.current = onStats;
 
   useEffect(() => {
     let cancelled = false;
@@ -184,7 +191,9 @@ export default function LivePreview({
         blushMeanRef.current = null;
       }
 
+      const tStart = performance.now();
       const result = landmarker.detectForVideo(video, performance.now());
+      const tDetect = performance.now();
       const ctx = canvas.getContext("2d")!;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -234,7 +243,26 @@ export default function LivePreview({
             gloss: 0,
           });
         }
+        const tBeforeLip = performance.now();
         recolourLip(ctx, video, lipRoiRef.current, lipBox, layers, lipMeanRef.current);
+
+        // Rolling averages: a single frame says nothing, and the stall being hunted is
+        // intermittent.
+        const now = performance.now();
+        timings.current.detect += (tDetect - tStart - timings.current.detect) * 0.1;
+        timings.current.blush += (tBeforeLip - tDetect - timings.current.blush) * 0.1;
+        timings.current.lip += (now - tBeforeLip - timings.current.lip) * 0.1;
+        timings.current.frame += (now - (timings.current.last || now) - timings.current.frame) * 0.1;
+        timings.current.last = now;
+
+        if (frameRef.current % 15 === 0) {
+          const t = timings.current;
+          onStatsRef.current?.(
+            `${(1000 / Math.max(1, t.frame)).toFixed(0)}fps · detect ${t.detect.toFixed(0)}ms · ` +
+              `blush ${t.blush.toFixed(0)}ms · lip ${t.lip.toFixed(0)}ms · ` +
+              `roi ${lipBox.width}x${lipBox.height} · frame ${w}x${h}`,
+          );
+        }
       }
 
       rafRef.current = requestAnimationFrame(loop);

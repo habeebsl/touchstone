@@ -19,6 +19,7 @@ interface LivePreviewScreenProps {
 export default function LivePreviewScreen({ rendered, skinColor, lipBaseColor, onBack }: LivePreviewScreenProps) {
   const [status, setStatus] = useState("Starting camera…");
   const [shadesOpen, setShadesOpen] = useState(false);
+  const [stats, setStats] = useState("");
   const { look, imageUrl } = rendered;
   const isLive = status === "Live";
   const shadeCount = Object.keys(look.palette).length;
@@ -35,6 +36,7 @@ export default function LivePreviewScreen({ rendered, skinColor, lipBaseColor, o
           skinColor={skinColor}
           lipBaseColor={lipBaseColor}
           onStatusChange={setStatus}
+          onStats={setStats}
           className="h-full w-full object-cover"
         />
       </div>
@@ -44,6 +46,13 @@ export default function LivePreviewScreen({ rendered, skinColor, lipBaseColor, o
         <header className="pointer-events-auto flex h-16 w-full items-center justify-start px-6">
           <BackButton onClick={onBack} onSurface label="Back to your looks" />
         </header>
+
+        {/* Timings, so a stall can be reported as numbers rather than as "it feels slow". */}
+        {stats && (
+          <p className="font-label pointer-events-none absolute left-1/2 top-20 -translate-x-1/2 whitespace-nowrap rounded bg-black/60 px-2 py-1 text-[0.6rem] text-white/80">
+            {stats}
+          </p>
+        )}
 
         {!isLive && (
           <p className="font-body pointer-events-none self-center rounded-lg bg-surface/85 px-4 py-2 text-sm text-foreground backdrop-blur-md">
