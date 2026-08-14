@@ -15,7 +15,7 @@ import type {
 /**
  * Our own proxy, not the API. The s2s credential is a server credential, and anything the browser
  * holds the browser can show — a VITE_-prefixed key is inlined into the built JavaScript, which is
- * where this one was. The proxy adds the Authorization header; see api/youcam/[...path].ts.
+ * where this one was. The proxy adds the Authorization header; see api/youcam.ts.
  */
 const BASE_URL = "/api/youcam";
 

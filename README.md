@@ -71,7 +71,7 @@ not validate one client-side.
 ### Deploying
 
 Vercel, root directory `app`, with `YOUCAM_API_KEY` set as a server environment variable.
-`api/youcam/[...path].ts` is picked up automatically.
+`api/youcam.ts` serves it, with `vercel.json` rewriting `/api/youcam/:path*` onto it.
 
 ---
 
