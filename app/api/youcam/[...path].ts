@@ -50,10 +50,16 @@ interface VercelResponse {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Logged on entry, and deliberately unconditional. This handler never returns 404: it answers
+  // 400, 500, or whatever the upstream said. So a Vercel NOT_FOUND page means it was never
+  // invoked, and the absence of this line from the runtime log is what proves that.
+  console.log("[proxy] in", JSON.stringify({ method: req.method, path: req.query.path }));
+
   const apiKey = process.env.YOUCAM_API_KEY;
   if (!apiKey) {
     // Said plainly: this fails at request time rather than at build time, so without a clear
     // message it looks like an API outage rather than a missing environment variable.
+    console.error("[proxy] YOUCAM_API_KEY missing from the environment");
     res.status(500).json({ error: "YOUCAM_API_KEY is not set on the server." });
     return;
   }
@@ -73,7 +79,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (typeof value === "string") headers[name] = value;
   }
 
-  const upstream = await fetch(`${BASE_URL}/${path}`, {
+  const url = `${BASE_URL}/${path}`;
+  console.log("[proxy] ->", req.method, url);
+
+  const upstream = await fetch(url, {
     method: req.method ?? "GET",
     headers,
     body:
@@ -88,7 +97,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const value = upstream.headers.get(name);
     if (value) res.setHeader(name, value);
   }
+  const text = await upstream.text();
+  console.log("[proxy] <-", upstream.status, text.slice(0, 200));
+
   // Passed through as text so an error body reaches the client intact — the API puts its useful
   // failure detail in the body, and parsing it here would lose it on a non-JSON response.
-  res.status(upstream.status).send(await upstream.text());
+  res.status(upstream.status).send(text);
 }
