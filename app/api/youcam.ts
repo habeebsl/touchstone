@@ -15,6 +15,14 @@
  * nothing to design here, and a wrapper per endpoint would be four more places to keep in step
  * with the API. The presigned upload PUT is not proxied at all — it carries its own signature and
  * never sees the key.
+ *
+ * A plain function behind a rewrite rather than a catch-all at api/youcam/[...path].ts. The
+ * catch-all deployed and compiled but was never routed: /api/youcam/* returned Vercel's own
+ * NOT_FOUND while a bare api/ping.ts answered fine, which isolated the fault to the bracket
+ * route. Declaring it in vercel.json could not help either, since `functions` keys are globs and
+ * `[...path]` reads there as a character class, not a literal. So vercel.json rewrites
+ * /api/youcam/:path* onto this file with the rest of the path as a query parameter, which uses
+ * only the two things that were proven to work.
  */
 
 const BASE_URL = "https://yce-api-01.makeupar.com";
@@ -64,6 +72,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
+  // Supplied by the rewrite in vercel.json, not by a dynamic route segment. Still handled as
+  // either shape: a rewrite gives a string, a dynamic segment would give an array.
   const segments = req.query.path;
   const path = Array.isArray(segments) ? segments.join("/") : (segments ?? "");
   if (!path.startsWith("s2s/")) {

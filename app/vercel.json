@@ -1,8 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    { "source": "/api/youcam/:path*", "destination": "/api/youcam?path=:path*" }
+  ],
   "functions": {
-    "api/youcam/[...path].ts": {
-      "maxDuration": 30
-    }
+    "api/youcam.ts": { "maxDuration": 30 }
   }
 }
