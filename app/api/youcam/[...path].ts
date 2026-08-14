@@ -24,6 +24,17 @@ const FORWARD_REQUEST_HEADERS = ["content-type"];
 /** Sent back to the browser. Notably not set-cookie. */
 const FORWARD_RESPONSE_HEADERS = ["content-type", "cache-control"];
 
+/**
+ * Declared rather than imported from @types/node.
+ *
+ * Vercel compiles this directory in a pass of its own, and the repo's tsconfig.json is a solution
+ * file with `files: []` that only points at the app and node projects. So that pass gets compiler
+ * defaults, no `types: ["node"]`, and fails on `process` even though @types/node is installed.
+ * Same reason the request and response shapes below are written out instead of pulled from
+ * @vercel/node: this file states what it needs and depends on nothing to supply it.
+ */
+declare const process: { env: Record<string, string | undefined> };
+
 interface VercelRequest {
   method?: string;
   query: Record<string, string | string[]>;
