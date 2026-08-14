@@ -23,9 +23,9 @@ const fail = (m: string) => {
   fails++;
 };
 
-// Mirrors LivePreview.tsx.
-const LIP_INTENSITY = 0.96;
-const BLUSH_INTENSITY = 0.4;
+// Strength now comes from the look itself, as it does in LivePreview — a fixed 0.96 here would
+// be checking a renderer that no longer exists, and would hide exactly the failure that matters:
+// a soft look applied gently can fall back under the visibility floor.
 
 /**
  * A real region is not one colour: it has a shadowed side and a specular highlight. Texture
@@ -48,8 +48,18 @@ for (const fx of ANALYSIS_FIXTURES) {
     // Each region composites over what is actually beneath it: lipstick over her measured lip
     // colour, blush over her skin. Sizing a lip against skin overstates how far it has to travel.
     for (const [region, color, mean, intensity, minVisible, minTexture] of [
-      ["lip", look.lipColor, fx.colors.lip_color, LIP_INTENSITY, 0.05, 0.1],
-      ["blush", look.blushColor, skin, BLUSH_INTENSITY, 0.02, 0.1],
+      // The visibility floor scales with how strongly the look means to be worn, down to a hard
+      // minimum. A gloss at 55% is *supposed* to read as less than a matte at 74% — holding both
+      // to one threshold either forces the sheer looks to stop being sheer or lets the strong ones
+      // off lightly. What may never happen is a lipstick you cannot see at all, and that is the
+      // floor under the scaling, which is the failure this whole check exists for on deep tones.
+      ["lip", look.lipColor, fx.colors.lip_color, look.lipIntensity, Math.max(0.038, 0.05 * (look.lipIntensity / 0.7)), 0.1],
+      // Blush had a 0.02 floor while the lip had 0.05 — less than half the bar, set back when the
+      // live layer composited blush at a fixed 0.4 and never revisited for the API render. Worn at
+      // the look's own intensity it was landing at 0.022 on the fairest fixture: applied, rendered,
+      // and invisible. Which is the exact failure this project quotes at the industry, so it does
+      // not get to be the one shipping it.
+      ["blush", look.blushColor, skin, look.blushIntensity, 0.033, 0.1],
     ] as const) {
       const out = predictComposite(mean, color, mean, intensity);
       const visible = deltaE(out, mean);
@@ -138,12 +148,12 @@ console.log("");
   const toHex = (c: number[]) =>
     "#" + c.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, "0")).join("");
 
-  const apply = (pixelHex: string, shadeHex: string, meanHex: string, gloss: number) => {
+  const apply = (pixelHex: string, shadeHex: string, meanHex: string, gloss: number, strength: number) => {
     const [r, g, b] = toRgb(pixelHex);
     const [sr, sg, sb] = toRgb(shadeHex);
     const meanLum = (0.2126 * toRgb(meanHex)[0] + 0.7152 * toRgb(meanHex)[1] + 0.0722 * toRgb(meanHex)[2]);
     const out: [number, number, number] = [0, 0, 0];
-    lipPixel(r, g, b, sr, sg, sb, meanLum, 0.96, gloss, out);
+    lipPixel(r, g, b, sr, sg, sb, meanLum, strength, gloss, out);
     return toHex(out);
   };
 
@@ -151,29 +161,73 @@ console.log("");
     const mean = fx.colors.lip_color;
     const { l, c, h } = hexToOklch(mean);
     // The three parts of a lip: shadow, evenly lit, and the specular catching the light.
+    //
+    // The specular has a lightness floor, because it is the light source reflected rather than a
+    // brighter version of the surface — it does not get dimmer just because the lip is deeper.
+    // Modelled as l * 1.75 alone it came out genuinely dark on deep lips, and the renderer was
+    // right to treat a dark pixel as lip rather than as a highlight; it was this fixture that was
+    // wrong. Which matters beyond the check: "bright relative to the region" is not the same
+    // property as "bright", and taking them as the same is what left a strongly lit mouth
+    // unpainted through its whole centre.
     const shadow = oklchToHex({ l: Math.max(0.04, l * 0.5), c: c * 0.8, h });
-    const specular = oklchToHex({ l: Math.min(0.98, l * 1.75), c: c * 0.25, h });
+    const specular = oklchToHex({ l: Math.min(0.98, Math.max(0.74, l * 1.75)), c: c * 0.25, h });
 
     for (const look of selectLooks(fx.colors, fx.fitzpatrick)) {
       const shade = look.lipColor;
 
-      // 1. The lit body of the lip takes the shade.
-      const body = apply(mean, shade, mean, 0);
-      if (deltaE(body, shade) > 0.06) {
-        fail(`${fx.id}/${look.label}: the lit lip renders ${body}, not the shade ${shade}`);
+      // 1. The lit body of the lip travels toward the shade in proportion to how strongly the
+      //    look wears it — not all the way to it.
+      //
+      //    This used to demand the body land on the shade exactly, which was only true because
+      //    the renderer applied every look at 0.96 no matter what the look asked for. That is the
+      //    bug this check was blind to: a lipstick the look wants at 45% is *supposed* to leave
+      //    some of her own lip showing, and rendering it at full strength is what made the live
+      //    view vivid where the API render was muted, and made five different looks land on the
+      //    same intensity on camera.
+      const body = apply(mean, shade, mean, 0, look.lipIntensity);
+      const gap = deltaE(mean, shade);
+      const remaining = deltaE(body, shade);
+      if (remaining > (1 - look.lipIntensity) * gap * 1.3 + 0.02) {
+        fail(
+          `${fx.id}/${look.label}: at ${(look.lipIntensity * 100).toFixed(0)}% the lit lip renders ` +
+            `${body}, ${remaining.toFixed(3)} short of ${shade} (bare lip is ${gap.toFixed(3)} away)`,
+        );
+      }
+      // And it has to be the shade's colour, not merely nearer to it.
+      const bodyHue = Math.abs(((hexToOklch(body).h - hexToOklch(shade).h + 540) % 360) - 180);
+      if (hexToOklch(shade).c > 0.04 && bodyHue > 15) {
+        fail(`${fx.id}/${look.label}: the lit lip renders ${bodyHue.toFixed(0)}° off the shade (${body} vs ${shade})`);
       }
 
-      // 2. The specular stays the colour of the light. Checked as chroma, since a highlight
-      //    tinted with lipstick is exactly what "plastic" looks like.
-      const lit = apply(specular, shade, mean, 0);
-      if (hexToOklch(lit).c > hexToOklch(specular).c + 0.04) {
+      // 2. The specular still reads as light rather than as lipstick: clearly lighter than the
+      //    body of the lip and clearly less saturated than it.
+      //
+      //    This used to demand that the highlight gain almost no chroma at all, and that was the
+      //    wrong property. It is satisfied perfectly by applying no lipstick, which is what the
+      //    renderer then did: under strong light a wide stretch of ordinary diffuse lip scores
+      //    bright, so the lip rendered as a red rim around a bare centre. The check passed the
+      //    whole time. Measured against the body rather than against bare lip, the real
+      //    distinction — highlight versus painted surface — survives, and a lit lip still gets
+      //    painted.
+      const lit = apply(specular, shade, mean, 0, look.lipIntensity);
+      const litC = hexToOklch(lit);
+      const bodyC = hexToOklch(body);
+      if (litC.l < bodyC.l + 0.08) {
         fail(
-          `${fx.id}/${look.label}: the highlight was tinted (chroma ${hexToOklch(specular).c.toFixed(3)} -> ${hexToOklch(lit).c.toFixed(3)})`,
+          `${fx.id}/${look.label}: the highlight stopped reading as one (lightness ${bodyC.l.toFixed(3)} body vs ${litC.l.toFixed(3)} highlight)`,
+        );
+      }
+      // Proportional, with a small absolute allowance: on a muted shade the body's own chroma is
+      // barely above neutral, and a purely proportional bound there demands a highlight more
+      // colourless than the lipstick is.
+      if (litC.c > bodyC.c * 0.6 + 0.02) {
+        fail(
+          `${fx.id}/${look.label}: the highlight is as saturated as the lipstick (chroma ${litC.c.toFixed(3)} vs body ${bodyC.c.toFixed(3)})`,
         );
       }
 
       // 3. The shadow stays a shadow rather than becoming dark lipstick.
-      const dark = apply(shadow, shade, mean, 0);
+      const dark = apply(shadow, shade, mean, 0, look.lipIntensity);
       if (hexToOklch(dark).l > hexToOklch(shadow).l + 0.06) {
         fail(`${fx.id}/${look.label}: the shadow was lifted (${shadow} -> ${dark})`);
       }
@@ -181,8 +235,8 @@ console.log("");
 
     const look = selectLooks(fx.colors, fx.fitzpatrick)[2];
     console.log(
-      `  ${fx.label.padEnd(30)} lit ${apply(mean, look.lipColor, mean, 0)}  ` +
-        `highlight ${apply(specular, look.lipColor, mean, 0)}  shadow ${apply(shadow, look.lipColor, mean, 0)}  ` +
+      `  ${fx.label.padEnd(30)} lit ${apply(mean, look.lipColor, mean, 0, look.lipIntensity)}  ` +
+        `highlight ${apply(specular, look.lipColor, mean, 0, look.lipIntensity)}  shadow ${apply(shadow, look.lipColor, mean, 0, look.lipIntensity)}  ` +
         `(shade ${look.lipColor})`,
     );
   }

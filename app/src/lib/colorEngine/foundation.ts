@@ -64,7 +64,7 @@ export function foundationGuide(profile: ColourProfile, skinHex: string): Founda
         : "Neutral";
 
   const advice = olive
-    ? "Look for shades labelled olive or neutral — golden shades will run orange on you."
+    ? "Look for shades labelled olive or neutral. Golden shades will run orange on you."
     : profile.undertone === "Warm"
       ? "Look for golden or yellow-based shades rather than pink-based ones."
       : profile.undertone === "Cool"

@@ -13,7 +13,8 @@ const SDK_URL = "https://plugins-media.makeupar.com/v2.5-camera-kit/sdk.js";
 declare global {
   interface Window {
     YMK: {
-      init: (options: { apiKey: string; secretKey?: string }) => void;
+      /** Takes credentials in principle; ours needs none — see useCameraKit. */
+      init: (options?: { apiKey?: string; secretKey?: string }) => void;
       openCameraKit: () => void;
       /** Dismisses the SDK UI. Fires the "closed" event. */
       close: () => void;

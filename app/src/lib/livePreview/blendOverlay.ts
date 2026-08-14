@@ -386,27 +386,46 @@ export function lipPixel(
   // Judged on the ratio *and* on absolute brightness, because on pale lips the ratio alone
   // under-detects a highlight: when the mean is already bright there is little headroom above it,
   // so a genuine specular scores barely 1.6 and took a third of the lipstick's colour.
-  //
-  // That absolute cutoff sat at 0.78 and was the reason the lip rendered as one band with the
-  // rest left bare. It does not adapt, so under a phone's brighter auto-exposure a wide stretch
-  // of ordinary lit lip scored above it and took no colour at all — and because nothing about it
-  // changes frame to frame, it looked stuck rather than settling. It now catches only pixels near
-  // genuine blowout.
-  const nearWhite = Math.max(0, Math.min(1, (lum / 255 - 0.9) / 0.08));
-  // Shadow keeps most of its colour. Lipstick in shadow is dark lipstick, not bare lip, and the
-  // relight below already carries the darkness — fading coverage out here as well was double
-  // counting, and it left the lip line and the corners of the mouth uncoloured.
+  // A specular has to be bright in itself, not merely brighter than the region's average. The
+  // average is dragged down by the lip line and the corners, so on a strongly lit mouth the
+  // ordinary centre scores a high ratio while being nowhere near white — and it was that, read as
+  // a highlight, that left it unpainted. The ratio only counts to the extent the pixel is
+  // genuinely bright.
+  const bright = Math.max(0, Math.min(1, (lum / 255 - 0.55) / 0.3));
+  // Absolute brightness still stands on its own once a pixel is close to white, because on pale
+  // lips the ratio under-detects: with the mean already bright there is little headroom above it,
+  // so a real specular scores barely 1.6.
+  const nearWhite = Math.max(0, Math.min(1, (lum / 255 - 0.85) / 0.1));
+  const light = Math.min(1, Math.max(0, (ratio - SPECULAR_FROM) / 0.5) * bright + nearWhite);
+  // Shadow keeps most of its coverage. Lipstick in shadow is dark lipstick, not bare lip, and the
+  // relight already carries the darkness — fading it out here as well left the lip line and the
+  // corners of the mouth uncoloured.
   const shadow = Math.max(0, (SHADOW_FROM - ratio) / 0.45) * SHADOW_FADE;
-  const weight = Math.max(
-    0,
-    Math.min(1, 1 - Math.max(0, (ratio - SPECULAR_FROM) / 0.5) - shadow) * (1 - nearWhite),
-  );
+  const weight = Math.max(0, Math.min(1, 1 - shadow) * (1 - light * (1 - SPECULAR_KEEP)));
 
   const a = alpha * weight;
-  // The albedo, relit by however much light this pixel is receiving.
-  out[0] = r + (Math.min(255, sr * ratio) - r) * a;
-  out[1] = g + (Math.min(255, sg * ratio) - g) * a;
-  out[2] = b + (Math.min(255, sb * ratio) - b) * a;
+
+  // The albedo, relit by however much light this pixel is receiving. Where that overflows, the
+  // excess spills into the other channels rather than being clipped away.
+  //
+  // Clipping each channel on its own is what made a bright pixel on a deep lip come out *more*
+  // saturated than the lip itself: the mean is dark, so the ratio runs high, red pins at 255 while
+  // green and blue keep climbing, and chroma rises with them. Real light does the opposite — as a
+  // surface blows out it washes toward white. Spilling the overflow across all three channels is
+  // that rolloff, and it is also the fix for the hue shift the same clipping used to cause.
+  let rr = sr * ratio;
+  let gg = sg * ratio;
+  let bb = sb * ratio;
+  const over = Math.max(rr, gg, bb) - 255;
+  if (over > 0) {
+    rr = Math.min(255, rr + over);
+    gg = Math.min(255, gg + over);
+    bb = Math.min(255, bb + over);
+  }
+
+  out[0] = r + (rr - r) * a;
+  out[1] = g + (gg - g) * a;
+  out[2] = b + (bb - b) * a;
 
   // Gloss is added as light, not as colour — white, and only where the lip was already catching
   // it, so it sits where the surface actually curves toward the source.
@@ -418,10 +437,15 @@ export function lipPixel(
   }
 }
 
-/** Above this multiple of the region's mean, a pixel is specular rather than lit lip. */
-const SPECULAR_FROM = 1.25;
+/** Above this multiple of the region's mean, a pixel starts reading as light rather than lit lip. */
+const SPECULAR_FROM = 1.35;
 /** And below this, it is shadow — the corners of the mouth, the line between the lips. */
 const SHADOW_FROM = 0.62;
+/**
+ * How much of the shade even a full highlight keeps. Not zero: a glossy red lip has a pink-white
+ * highlight, not a bare-lip one, and taking it to zero is what left the middle of the lip unpainted.
+ */
+const SPECULAR_KEEP = 0.2;
 /** How much of its coverage a shadow gives up. Most of it is kept: it is still lipstick. */
 const SHADOW_FADE = 0.3;
 

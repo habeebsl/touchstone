@@ -99,6 +99,13 @@ function accentHueForEyes(eye: EyeColorName, spec: SeasonSpec, register: Registe
 export interface PaletteInputs {
   colors: Measured;
   profile: ColourProfile;
+  /**
+   * Place colour the conventional way — below the skin's own lightness, with no adaptation for
+   * depth. Only ever set to build the counterfactual the product shows her: the same look with
+   * this one rule switched off, so the comparison isolates the rule instead of comparing two
+   * different engines.
+   */
+  conventional?: boolean;
 }
 
 /**
@@ -107,7 +114,15 @@ export interface PaletteInputs {
  * Depth adaptation is the important part: chroma rises and lightness falls with measured depth,
  * and a minimum perceptual gap from the skin is enforced so no colour ever disappears into it.
  */
-export function pickColour({ colors, profile }: PaletteInputs, role: Role, register: Register): string {
+export function pickColour(
+  { colors, profile, conventional }: PaletteInputs,
+  role: Role,
+  register: Register,
+  /** Collects the visibility check for this role, when the caller wants to show its working. */
+  ledger?: ShadeCheck[],
+  /** Collects the depth-placement comparison, for roles that have one. */
+  placement?: Placement[],
+): string {
   const spec = SEASONS[profile.season];
   const reg = REGISTERS[register];
   const skin = hexToOklch(colors.skin_color);
@@ -186,17 +201,38 @@ export function pickColour({ colors, profile }: PaletteInputs, role: Role, regis
     // 0 for fair skin, 1 for the deepest.
     const deepBlend = Math.max(0, Math.min(1, (0.62 - skin.l) / 0.3));
     // Blush stays a flush close to the face, so it follows the skin more than the lip does.
-    const pull = role === "blush" ? deepBlend * 0.6 : deepBlend;
+    const pull = conventional ? 0 : role === "blush" ? deepBlend * 0.6 : deepBlend;
 
     lightness = below * (1 - pull) + VIVID_L * pull + spec.lightnessBias;
     // Colour placed at or above the skin has to carry the distinction through saturation.
     chroma *= 1 + pull * 0.5;
+
+    // What the conventional rule alone would have produced: sit below the skin's own lightness,
+    // no depth adaptation. Recorded rather than inferred, because it is the whole argument — on
+    // fair skin the two land in much the same place, and on deep skin the conventional rule runs
+    // out of gamut and decays toward black. Computing it here means the comparison is the code's
+    // own arithmetic rather than a claim written next to it.
+    if (placement) {
+      placement.push({
+        role,
+        conventional: oklchToHex({
+          l: Math.max(0.1, Math.min(0.97, below + spec.lightnessBias)),
+          c: Math.max(0, chroma / (1 + pull * 0.5)),
+          h: hue,
+        }),
+        adapted: oklchToHex({ l: Math.max(0.1, Math.min(0.97, lightness)), c: Math.max(0, chroma), h: hue }),
+        skinHex: colors.skin_color,
+      });
+    }
   }
 
   let result = oklchToHex({ l: Math.max(0.1, Math.min(0.97, lightness)), c: Math.max(0, chroma), h: hue });
 
   const required = MIN_DISTANCE[role];
-  return required === undefined ? result : enforceDistance(result, colors.skin_color, required);
+  if (required === undefined) return result;
+  const check = checkDistance(result, colors.skin_color, required, role, "skin");
+  ledger?.push(check);
+  return check.final;
 }
 
 /**
@@ -227,14 +263,78 @@ export const MIN_DISTANCE_FOR: Readonly<Partial<Record<Role, number>>> = MIN_DIS
  * sites is how the two versions drift apart.
  */
 export function enforceDistance(hex: string, skinHex: string, minDistance: number): string {
+  return checkDistance(hex, skinHex, minDistance, "lip", "skin").final;
+}
+
+/**
+ * What a shade is measured against, what it was before, and what it became.
+ *
+ * The guard already computes all of this and then returns one string, throwing the reasoning
+ * away. Keeping it is what lets the product show its working: the shade the palette first
+ * proposed, the distance it fell short by, and the one that replaced it. Every number here is the
+ * same arithmetic the engine acted on, not a description of it.
+ */
+export interface ShadeCheck {
+  role: Role;
+  /** What it had to stay clear of: the skin it sits on, or her own lip colour underneath it. */
+  against: "skin" | "lip";
+  againstHex: string;
+  /** The palette's first pick, before the guard ran. */
+  proposed: string;
+  /** What it became. Equal to `proposed` when the first pick already cleared the floor. */
+  final: string;
+  /** Perceptual distance before and after, and the floor it had to clear. */
+  before: number;
+  after: number;
+  floor: number;
+}
+
+/**
+ * Where a shade was placed, against where the conventional rule would have put it.
+ *
+ * This is the part that actually adapts to depth, and it runs before the visibility guard rather
+ * than in it — which the receipts made plain: on the deepest fixture every shade clears the floor
+ * untouched, while on the fairest the guard has to push blush and eyeshadow. The guard is a
+ * backstop. The placement is the argument.
+ *
+ * "Sit below the skin's lightness" is a fair-skin assumption. There is room below fair skin and
+ * almost none below deep skin, where it runs into the region sRGB cannot hold a saturated colour
+ * in at all — which is how a bold lip once came out at #040403.
+ */
+export interface Placement {
+  role: Role;
+  /** The conventional rule alone: below the skin, no depth adaptation. */
+  conventional: string;
+  /** Where it actually went, adapted to measured depth. */
+  adapted: string;
+  skinHex: string;
+}
+
+/** The guard, reporting its working. `enforceDistance` is this with the reasoning dropped. */
+export function checkDistance(
+  hex: string,
+  againstHex: string,
+  minDistance: number,
+  role: Role,
+  against: "skin" | "lip",
+): ShadeCheck {
   let { l, c, h } = hexToOklch(hex);
   let result = hex;
-  for (let i = 0; i < 6 && deltaE(result, skinHex) < minDistance; i++) {
+  for (let i = 0; i < 6 && deltaE(result, againstHex) < minDistance; i++) {
     c *= 1.3;
     if (l > CHROMA_FLOOR + 0.04) l -= 0.02;
     result = oklchToHex({ l: Math.max(0.1, Math.min(0.97, l)), c, h });
   }
-  return result;
+  return {
+    role,
+    against,
+    againstHex,
+    proposed: hex,
+    final: result,
+    before: deltaE(hex, againstHex),
+    after: deltaE(result, againstHex),
+    floor: minDistance,
+  };
 }
 
 /**

@@ -137,7 +137,7 @@ function computeDepth(colors: Measured, fitzpatrick: FitzpatrickScale | null, ra
     rationale.push({
       axis: "Depth",
       value: describe(fromSkin),
-      evidence: "Estimated from your skin's lightness alone — the Fitzpatrick reading didn't come back.",
+      evidence: "Estimated from your skin's lightness alone, since the Fitzpatrick reading didn't come back.",
     });
     return fromSkin;
   }
@@ -185,10 +185,10 @@ function computeContrast(colors: Measured, rationale: Finding[]): number {
  * calendar — worth saying, since "you are an Autumn" otherwise sounds like a horoscope.
  */
 const SEASON_MEANING: Record<Season, string> = {
-  Spring: "Warm and light — your colouring suits clear, fresh colours like coral and peach.",
-  Summer: "Cool and soft — your colouring suits muted colours like rose, mauve and soft blue.",
-  Autumn: "Warm and deep — your colouring suits earthy colours like brick, bronze and olive.",
-  Winter: "Cool and deep — your colouring suits strong, clear colours like true red and plum.",
+  Spring: "Warm and light. Your colouring suits clear, fresh colours like coral and peach.",
+  Summer: "Cool and soft. Your colouring suits muted colours like rose, mauve and soft blue.",
+  Autumn: "Warm and deep. Your colouring suits earthy colours like brick, bronze and olive.",
+  Winter: "Cool and deep. Your colouring suits strong, clear colours like true red and plum.",
 };
 
 function nameUndertone(warmth: number): Undertone {

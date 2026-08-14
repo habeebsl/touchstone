@@ -28,6 +28,13 @@ interface LivePreviewProps {
    * cheek. Compositing both against skin was wrong — lips are already deeper and more saturated
    * than the face, so a shade sized against skin lands wide of what it actually has to shift.
    */
+  /**
+   * How strongly each is worn, 0..1, taken from the look itself rather than fixed here. A
+   * constant meant the canvas applied every shade at the same strength — vivid where the
+   * rendered look was muted, and identical across looks that are meant to differ.
+   */
+  lipIntensity: number;
+  blushIntensity: number;
   skinColor: string;
   lipBaseColor: string;
   /** Applied to the output canvas so the parent controls framing (full-bleed vs boxed). */
@@ -49,9 +56,9 @@ const MODEL_URL = "/models/face_landmarker.task";
 // Relighting preserves the region's own variation, so it can run strong without flattening it.
 // Lipstick is opaque and deliberate — leaving 15% of the bare lip showing through was reading as
 // a wash rather than a shade. Blush is a flush and stays low.
-const LIP_INTENSITY = 0.96;
-const LINER_INTENSITY = 0.75;
-const BLUSH_INTENSITY = 0.4;
+// Liner is a fraction of whatever the lip is wearing, not a fixed strength: it is an edge on the
+// lipstick, so it has to move with it or a sheer lip gets a hard drawn border.
+const LINER_OF_LIP = 0.78;
 
 // How much specular each finish carries. Matte is genuinely zero: killing the shine is what
 // makes a matte look matte.
@@ -83,13 +90,25 @@ const MEAN_SMOOTHING = 0.25;
 // Frames excluded from the timing averages while the model warms up.
 const WARMUP_FRAMES = 5;
 
-/** The product's actual live preview: tap a look, see its lip + blush colors live. No user
- * controls — unlike LipBlendSpike, this renders whatever look was selected upstream. */
+/**
+ * Live lip and blush on the camera feed.
+ *
+ * No longer in the product. It was cut before submission: on a mid-range phone MediaPipe's face
+ * landmarking costs ~113ms a frame, which held the preview at 6fps, and even rendering correctly
+ * it read as a filter rather than as makeup. Both are hard to fix and neither is what this
+ * project is actually about — and Perfect Corp's own shipped app does live AR makeup well, so
+ * showing them a worse version of it argued against us.
+ *
+ * Kept because EndToEndSpike still exercises it and the compositing work is sound: the per-pixel
+ * relight in blendOverlay.ts, and the finding that a lit lip must not be mistaken for a specular.
+ */
 export default function LivePreview({
   lipColor,
   blushColor,
   lipLinerColor,
   finish,
+  lipIntensity,
+  blushIntensity,
   skinColor,
   lipBaseColor,
   className = "",
@@ -394,7 +413,7 @@ export default function LivePreview({
           colorScratchRef.current,
           blushColor,
           blushMeanRef.current,
-          BLUSH_INTENSITY,
+          blushIntensity,
           w,
           h,
         );
@@ -407,14 +426,14 @@ export default function LivePreview({
         // second layer in the same pass — it defines the edge of what the first one laid down.
         const lipBox = boundsOf(landmarks, OUTER_LIPS, w, h, FEATHER * 2);
         const layers = [
-          { maskCanvas: lipMaskRef.current, shadeHex: lipColor, intensity: LIP_INTENSITY, gloss: SHINE[finish] ?? 0.16 },
+          { maskCanvas: lipMaskRef.current, shadeHex: lipColor, intensity: lipIntensity, gloss: SHINE[finish] ?? 0.16 },
         ];
         if (lipLinerColor) {
           buildLipLinerMask(linerMaskRef.current.getContext("2d", { willReadFrequently: true })!, landmarks, w, h, LINER_FEATHER);
           layers.push({
             maskCanvas: linerMaskRef.current,
             shadeHex: lipLinerColor,
-            intensity: LINER_INTENSITY,
+            intensity: lipIntensity * LINER_OF_LIP,
             gloss: 0,
           });
         }

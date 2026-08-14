@@ -31,12 +31,15 @@ import type {
 import { analyseColouring, type ColourProfile, type Season } from "./season";
 import type { NormalisedColors } from "./normalise";
 import {
+  checkDistance,
   enforceDistance,
   MIN_DISTANCE_FOR,
   MIN_FROM_NATURAL_LIP,
   pickColour,
   pickLipColour,
   type Register,
+  type Placement,
+  type ShadeCheck,
 } from "./palette";
 import { hexToOklch, mixOklch, oklchToHex } from "./oklch";
 import { clashesWith, intensityShift, type GarmentInfluence } from "../garment/influence";
@@ -53,6 +56,37 @@ export interface FilledLook {
   /** The two regions the live preview layer can render. */
   lipColor: string;
   blushColor: string;
+  /**
+   * How strongly each is worn, 0..1 — the same strength the rendered look is asking the API for.
+   *
+   * The live layer used to apply a fixed 0.96 to everything. That is not what any of these looks
+   * specify: Glazed asks for 55 with a third of it transparent, Sunlit for 66. So the live view
+   * came out vivid where the render came out muted, and worse, every look came out at the same
+   * strength — a soft look and a bold one were indistinguishable on camera, which is most of what
+   * a set of looks is for.
+   */
+  lipIntensity: number;
+  blushIntensity: number;
+  /**
+   * What the visibility guard did to each shade, in the order it ran.
+   *
+   * The engine already computed all of this and discarded it. Kept, it is the product's own
+   * evidence: the shade the palette first proposed, how far it sat from her skin or her bare
+   * lips, the floor it had to clear, and what replaced it when it didn't. Shown to her rather
+   * than logged, because a recommender that claims to check its work should be able to show it.
+   */
+  checks: ShadeCheck[];
+  /**
+   * Where each shade was placed, against where the conventional "sit below the skin" rule would
+   * have put it. This is the part that adapts to measured depth, and on deep skin it is the
+   * difference between a vivid shade and something close to black.
+   */
+  placements: Placement[];
+  /**
+   * This look's lip with the depth adaptation switched off and nothing else changed. Equal to
+   * `lipColor` wherever the rule was not needed, which is most colouring.
+   */
+  conventionalLip: string;
   /** Every colour the render carries, for display and debugging. */
   palette: Record<string, string>;
   effects: MakeupEffect[];
@@ -85,8 +119,10 @@ interface ColourAccent {
 const MAX_HUE_SHIFT = 16;
 
 /**
- * The floor no lip shade may go under, whatever its accent says. Set from the other end: the live
- * layer applies at 0.85, and below about 0.05 on the face the lipstick is not visible at all.
+ * The floor no lip shade may go under, whatever its accent says. Set from the other end: below
+ * about 0.05 on the face the lipstick is not visible at all. How strongly the layer applies it is
+ * no longer a single number — each look wears its own — so the gap is scaled by that where it is
+ * enforced, and this stays the floor beneath all of them.
  */
 const MIN_VISIBLE_LIP = 0.06;
 
@@ -138,7 +174,7 @@ const TEMPLATES: LookTemplate[] = [
     accent: { lipChroma: 0.8 },
     smooth: 58,
     lip: { texture: "sheer", intensity: 40, shape: "original" },
-    blush: { pattern: "1color1", intensity: 26 }, // Blush 3D, oblong — a wash, not a shape
+    blush: { pattern: "1color1", intensity: 39 }, // Blush 3D, oblong — a wash, not a shape
     brow: { pattern: "Original2", curvature: 0, thickness: 0, definition: 30, intensity: 35 },
   },
   {
@@ -150,7 +186,7 @@ const TEMPLATES: LookTemplate[] = [
     lashes: { pattern: "Natural1", intensity: 62 },
     smooth: 45,
     lip: { texture: "satin", intensity: 58, shape: "original" },
-    blush: { pattern: "1color1", intensity: 38 },
+    blush: { pattern: "1color1", intensity: 57 },
     eyeshadow: { pattern: "1color9", colors: 1, intensity: 32 }, // single wash, whole eye
     liner: { pattern: "Lower1", intensity: 25 },
     brow: { pattern: "Original2", curvature: 0, thickness: 0, definition: 35, intensity: 45 },
@@ -166,7 +202,7 @@ const TEMPLATES: LookTemplate[] = [
     lashes: { pattern: "Upper&Lower4", intensity: 88 },
     smooth: 52,
     lip: { texture: "satin", intensity: 50, shape: "original" },
-    blush: { pattern: "1color1", intensity: 32 },
+    blush: { pattern: "1color1", intensity: 48 },
     brow: { pattern: "SoftArch1", curvature: 5, thickness: 0, definition: 40, intensity: 42 },
   },
   {
@@ -179,7 +215,7 @@ const TEMPLATES: LookTemplate[] = [
     lashes: { pattern: "Natural1", intensity: 60 },
     smooth: 48,
     lip: { texture: "satin", intensity: 62, shape: "original" },
-    blush: { pattern: "Round1", intensity: 44 },
+    blush: { pattern: "Round1", intensity: 66 },
     eyeshadow: { pattern: "1color9", colors: 1, intensity: 40 },
     brow: { pattern: "SoftArch1", curvature: 5, thickness: 0, definition: 40, intensity: 45 },
     highlighter: { pattern: "OvalFace2", intensity: 30, glow: 40 },
@@ -195,7 +231,7 @@ const TEMPLATES: LookTemplate[] = [
     lashes: { pattern: "Wispies1", intensity: 66 },
     smooth: 62,
     lip: { texture: "gloss", intensity: 55, shape: "plump", fullness: 35 },
-    blush: { pattern: "Oblique1", intensity: 40 },
+    blush: { pattern: "Oblique1", intensity: 60 },
     eyeshadow: { pattern: "1color9", colors: 1, intensity: 26 },
     brow: { pattern: "SoftArch1", curvature: 5, thickness: 5, definition: 45, intensity: 45 },
     highlighter: { pattern: "OvalFace2", intensity: 55, glow: 70 },
@@ -210,7 +246,7 @@ const TEMPLATES: LookTemplate[] = [
     lipLiner: { pattern: "Natural1", intensity: 55, thickness: 45, smoothness: 55 },
     smooth: 50,
     lip: { texture: "matte", intensity: 74, shape: "original" },
-    blush: { pattern: "Oblique1", intensity: 46 },
+    blush: { pattern: "Oblique1", intensity: 69 },
     eyeshadow: { pattern: "2colors1", colors: 2, intensity: 48 }, // fan shape, upper lid
     liner: { pattern: "OpenWings1", intensity: 55 },
     brow: { pattern: "SoftArch1", curvature: 10, thickness: 5, definition: 55, intensity: 50 },
@@ -228,7 +264,7 @@ const TEMPLATES: LookTemplate[] = [
     lashes: { pattern: "UpperDense1", intensity: 74 },
     smooth: 50,
     lip: { texture: "satin", intensity: 66, shape: "original" },
-    blush: { pattern: "Oblique1", intensity: 50 },
+    blush: { pattern: "Oblique1", intensity: 72 },
     eyeshadow: { pattern: "3colors103", colors: 3, intensity: 55 }, // closed banana — blended socket
     liner: { pattern: "Smoke11", intensity: 40 },
     brow: { pattern: "SoftArch1", curvature: 8, thickness: 8, definition: 55, intensity: 50 },
@@ -245,7 +281,7 @@ const TEMPLATES: LookTemplate[] = [
     lashes: { pattern: "Winged1", intensity: 82 },
     smooth: 48,
     lip: { texture: "satin", intensity: 58, shape: "original" },
-    blush: { pattern: "Oblique1", intensity: 38 },
+    blush: { pattern: "Oblique1", intensity: 57 },
     eyeshadow: { pattern: "2colors40", colors: 2, intensity: 52 }, // cat eye
     liner: { pattern: "OpenWings2", intensity: 72 },
     brow: { pattern: "HighArch1", curvature: 15, thickness: 8, definition: 62, intensity: 52 },
@@ -262,7 +298,7 @@ const TEMPLATES: LookTemplate[] = [
     lashes: { pattern: "Upper&Lower1", intensity: 78 },
     smooth: 50,
     lip: { texture: "satin", intensity: 55, shape: "original" },
-    blush: { pattern: "Oblique1", intensity: 36 },
+    blush: { pattern: "Oblique1", intensity: 54 },
     eyeshadow: { pattern: "2colors167", colors: 2, intensity: 68 }, // cut crease
     liner: { pattern: "OpenWings1", intensity: 62 },
     brow: { pattern: "HighArch1", curvature: 18, thickness: 10, definition: 70, intensity: 55 },
@@ -279,7 +315,7 @@ const TEMPLATES: LookTemplate[] = [
     lashes: { pattern: "UpperDense1", intensity: 85 },
     smooth: 50,
     lip: { texture: "satin", intensity: 52, shape: "original" },
-    blush: { pattern: "Oblique1", intensity: 40 },
+    blush: { pattern: "Oblique1", intensity: 60 },
     eyeshadow: { pattern: "3colors100", colors: 3, intensity: 72 }, // smokey, whole eye
     liner: { pattern: "PandaSmudge1", intensity: 70 },
     brow: { pattern: "HighArch1", curvature: 18, thickness: 12, definition: 68, intensity: 55 },
@@ -297,7 +333,7 @@ const TEMPLATES: LookTemplate[] = [
     lipLiner: { pattern: "Large&Full1", intensity: 72, thickness: 62, smoothness: 40 },
     smooth: 50,
     lip: { texture: "matte", intensity: 92, shape: "original" },
-    blush: { pattern: "Oblique1", intensity: 44 },
+    blush: { pattern: "Oblique1", intensity: 66 },
     eyeshadow: { pattern: "1color9", colors: 1, intensity: 30 },
     liner: { pattern: "OpenWings2", intensity: 60 },
     brow: { pattern: "HighArch1", curvature: 20, thickness: 12, definition: 72, intensity: 55 },
@@ -353,7 +389,14 @@ function shift(hex: string, { h = 0, chroma = 1, l = 0 }: { h?: number; chroma?:
 function buildEffects(
   spec: LookTemplate,
   inputs: { colors: Measured; profile: ColourProfile; garment?: GarmentInfluence },
-): { effects: MakeupEffect[]; palette: Record<string, string>; live: { lip: string; blush: string } } {
+): {
+  effects: MakeupEffect[];
+  palette: Record<string, string>;
+  checks: ShadeCheck[];
+  placements: Placement[];
+  conventionalLip: string;
+  live: { lip: string; blush: string; lipIntensity: number; blushIntensity: number };
+} {
   const { register } = spec;
   const accent = spec.accent ?? {};
   const garment = inputs.garment;
@@ -382,19 +425,50 @@ function buildEffects(
   // requirement after the accent pushed two looks onto the same clamped value — the guard undoing
   // exactly the difference the accent exists to create. A look that steps its lip back is allowed
   // to sit closer to her natural colour, just never so close that it vanishes.
+  //
+  // Deliberately *not* scaled by how strongly the look wears the shade. Widening the gap for the
+  // gentler looks does keep them above the visibility floor, but it pushes the soft register out
+  // until it is as far from her natural lip as the bold one — which collapses the difference the
+  // set exists to offer, and pushed two looks onto the same clamped colour. A sheer look being
+  // subtler than a bold one is the point; the floor below is what stops subtle becoming invisible.
   const naturalLipGap = Math.max(
     MIN_VISIBLE_LIP,
     MIN_FROM_NATURAL_LIP[register] * (accent.lipChroma ?? 1),
   );
-  const lip = enforceDistance(
-    enforceDistance(lipBase, inputs.colors.skin_color, MIN_DISTANCE_FOR.lip!),
+  const againstSkin = checkDistance(lipBase, inputs.colors.skin_color, MIN_DISTANCE_FOR.lip!, "lip", "skin");
+  const againstBareLip = checkDistance(againstSkin.final, inputs.colors.lip_color, naturalLipGap, "lip", "lip");
+  const lip = againstBareLip.final;
+
+  // The same lip, derived again with the depth adaptation switched off — accent, clash handling
+  // and both guards included, so the only difference between the two is the placement rule. A
+  // comparison that also changed the accent or skipped the guards would be comparing two engines
+  // rather than isolating the decision, and would not survive being looked at closely.
+  const conventionalInputs = { ...inputs, conventional: true };
+  let conventionalBase = shift(pickLipColour(conventionalInputs, register), {
+    h: accent.lipHue,
+    chroma: accent.lipChroma,
+    l: accent.lipLightness,
+  });
+  if (garment && clashesWith(hexToOklch(conventionalBase).h, garment)) {
+    conventionalBase = shift(conventionalBase, { chroma: 0.7 });
+  }
+  const conventionalLip = enforceDistance(
+    enforceDistance(conventionalBase, inputs.colors.skin_color, MIN_DISTANCE_FOR.lip!),
     inputs.colors.lip_color,
     naturalLipGap,
   );
+  // Both, in the order they ran. They answer different questions — whether the shade separates
+  // from her face at all, and whether she could tell she had put anything on.
+  const checks: ShadeCheck[] = [againstSkin, againstBareLip];
+  // Where the lip was placed, against where the conventional rule would have put it. Collected
+  // from a fresh pick because pickLipColour blends the palette's choice with her measured lips —
+  // this records the palette's placement decision, which is the part that adapts to depth.
+  const placements: Placement[] = [];
+  pickColour(inputs, "lip", register, undefined, placements);
 
-  let blush = pickColour(inputs, "blush", register);
+  let blush = pickColour(inputs, "blush", register, checks, placements);
   const shadowBase = pickColour(inputs, "eyeshadowBase", register);
-  let shadowAccent = shift(pickColour(inputs, "eyeshadowAccent", register), {
+  let shadowAccent = shift(pickColour(inputs, "eyeshadowAccent", register, checks), {
     h: accent.shadowHue,
     chroma: accent.shadowChroma,
   });
@@ -566,7 +640,27 @@ function buildEffects(
   // The live layer always draws lip and blush, even for a look that applies no blush effect — a
   // face on camera still has cheeks — so those two are returned separately from what the look
   // *reports* wearing.
-  return { effects, palette, live: { lip, blush } };
+  //
+  // Their strengths come along, so the canvas applies what the look actually asks for rather than
+  // a constant.
+  //
+  // Colour intensity alone, with no extra discount for a gloss or sheer texture's transparency.
+  // Discounting it as well took Glazed down to 45% and back under the visibility floor — while
+  // the rendered look, at the same 55 the API is given, is plainly visible. Transparency there
+  // governs how the film reads, not how much colour lands, and the canvas has no film to thin.
+  return {
+    effects,
+    palette,
+    checks,
+    placements,
+    conventionalLip,
+    live: {
+      lip,
+      blush,
+      lipIntensity: spec.lip.intensity / 100,
+      blushIntensity: (spec.blush?.intensity ?? 35) / 100,
+    },
+  };
 }
 
 // --- Selection -------------------------------------------------------------------------------
@@ -616,40 +710,92 @@ function selectTemplates(profile: ColourProfile, count: number, garment?: Garmen
   return chosen.slice(0, count).sort((a, b) => a.intensity - b.intensity);
 }
 
-function explain(spec: LookTemplate, profile: ColourProfile, garment?: GarmentInfluence): string {
-  // The outfit's influence is deliberately subtle in the colours, so it is stated plainly here
-  // instead. A visible reason reads as judgement; a big colour shift would just read as a filter.
-  const fit = garment && !garment.neutral && garment.loudness > 0.5
-    ? "stepped back, so your outfit leads"
-    : garment?.neutral
+/** Small numbers read as words in a sentence. "The quietest of the 5" looks like a spreadsheet. */
+function spell(n: number): string {
+  return ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"][n] ?? String(n);
+}
+
+/**
+ * The "why" line under each look, for a whole set at once.
+ *
+ * Computed for the set because "no two cards say the same thing" is not a property one card can
+ * check. Each look proposes reasons in descending order of how much it says and takes the best
+ * one nobody above it has taken; the strongest are the ones true of this look and not the others.
+ */
+function explainAll(
+  specs: LookTemplate[],
+  profile: ColourProfile,
+  garment?: GarmentInfluence,
+): string[] {
+  const total = specs.length;
+
+  // The outfit's influence is deliberately subtle in the colours, so it is stated plainly here.
+  // It belongs to one look: stamping a fact about the outfit on all five made them identical.
+  const outfitReason = !garment
+    ? null
+    : garment.neutral
       ? "your outfit is quiet, so this can speak up"
-      : garment && garment.hue !== null
-        ? "the eye picks up your outfit"
-        : spec.affinity?.[profile.season]
-          ? `suits ${profile.season} colouring`
-          : profile.contrast > 0.6
-            ? "your contrast carries it"
-            : profile.contrast < 0.35
-              ? "kept soft, like your colouring"
-              : `built around your ${profile.undertone.toLowerCase()} undertone`;
-  return `${spec.note[0].toUpperCase()}${spec.note.slice(1)} — ${fit}.`;
+      : garment.loudness > 0.5
+        ? "stepped back, so your outfit leads"
+        : "the eye picks up your outfit";
+
+  // Closest to what her colouring carries: the look the outfit most shaped.
+  const wanted = preferredIntensity(profile) + (garment ? intensityShift(garment) : 0);
+  const centre = specs.reduce(
+    (best, spec, i) => (Math.abs(spec.intensity - wanted) < Math.abs(specs[best].intensity - wanted) ? i : best),
+    0,
+  );
+
+  const personal =
+    profile.contrast > 0.6
+      ? "your contrast carries it"
+      : profile.contrast < 0.35
+        ? "kept soft, like your colouring"
+        : `built around your ${profile.undertone.toLowerCase()} undertone`;
+
+  const used = new Set<string>();
+  return specs.map((spec, i) => {
+    const candidates = [
+      spec.affinity?.[profile.season] ? `suits ${profile.season} colouring` : "",
+      i === centre && outfitReason ? outfitReason : "",
+      i === 0 ? `the quietest of the ${spell(total)}, for when you want almost nothing` : "",
+      i === total - 1 ? `the boldest of the ${spell(total)}, for when you want it seen` : "",
+      i === centre ? "about as much as your colouring carries" : "",
+      outfitReason ?? "",
+      personal,
+      // Last resort, and the only one guaranteed to differ: selection seeds one per register.
+      `a ${spec.lip.texture} lip, kept ${spec.register}`,
+    ];
+
+    const fit = candidates.find((c) => c && !used.has(c)) ?? candidates[candidates.length - 1];
+    used.add(fit);
+
+    // Two sentences: what the look is going for, then why it was picked for her.
+    const note = `${spec.note[0].toUpperCase()}${spec.note.slice(1)}`;
+    return `${note}. ${fit[0].toUpperCase()}${fit.slice(1)}.`;
+  });
 }
 
 // --- Entry points ----------------------------------------------------------------------------
 
 function fill(
   spec: LookTemplate,
-  inputs: { colors: Measured; profile: ColourProfile; garment?: GarmentInfluence },
+  inputs: { colors: Measured; profile: ColourProfile; garment?: GarmentInfluence; why: string },
 ): FilledLook {
-  const { effects, palette, live } = buildEffects(spec, inputs);
+  const { effects, palette, live, checks, placements, conventionalLip } = buildEffects(spec, inputs);
   return {
     templateId: spec.id,
     label: spec.name,
-    why: explain(spec, inputs.profile, inputs.garment),
+    why: inputs.why,
     register: spec.register,
     finish: spec.lip.texture,
     lipColor: live.lip,
     blushColor: live.blush,
+    lipIntensity: live.lipIntensity,
+    blushIntensity: live.blushIntensity,
+    checks,
+    placements,
+    conventionalLip,
     palette,
     effects,
   };
@@ -666,13 +812,16 @@ export function selectLooks(
   garment?: GarmentInfluence,
 ): FilledLook[] {
   const profile = analyseColouring(colors, fitzpatrick);
-  return selectTemplates(profile, count, garment).map((spec) => fill(spec, { colors, profile, garment }));
+  const specs = selectTemplates(profile, count, garment);
+  const whys = explainAll(specs, profile, garment);
+  return specs.map((spec, i) => fill(spec, { colors, profile, garment, why: whys[i] }));
 }
 
 /** Every template, filled. For the engine lab and the API probes — not the user-facing path. */
 export function fillLooks(colors: Measured, fitzpatrick: FitzpatrickScale | null = null): FilledLook[] {
   const profile = analyseColouring(colors, fitzpatrick);
-  return TEMPLATES.map((spec) => fill(spec, { colors, profile }));
+  const whys = explainAll(TEMPLATES, profile);
+  return TEMPLATES.map((spec, i) => fill(spec, { colors, profile, why: whys[i] }));
 }
 
 export const TEMPLATE_COUNT = TEMPLATES.length;

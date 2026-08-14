@@ -3,21 +3,20 @@ import CameraKitMount from "./components/CameraKitMount";
 import IntroScreen from "./screens/IntroScreen";
 import AnalysingScreen from "./screens/AnalysingScreen";
 import LooksScreen, { type RenderedLook } from "./screens/LooksScreen";
-import LivePreviewScreen from "./screens/LivePreviewScreen";
 import OutfitScreen from "./screens/OutfitScreen";
 import { useCameraKit } from "./lib/cameraKit/useCameraKit";
 import { YouCamClient } from "./lib/youcam/client";
-import { selectLooks } from "./lib/colorEngine/template";
+import { selectLooks, type FilledLook } from "./lib/colorEngine/template";
 import { analyseColouring, type ColourProfile } from "./lib/colorEngine/season";
 import { normaliseMeasured, type NormalisedColors } from "./lib/colorEngine/normalise";
 import { garmentPaletteFromImage, type GarmentSwatch } from "./lib/garment/palette";
 import { garmentInfluence } from "./lib/garment/influence";
-import { getFixture, rememberAnalysis } from "./lib/fixtures/analysisFixtures";
-import { clearSession, loadSession, saveSession } from "./lib/session/persistedSession";
+import { getFixture, rememberAnalysis, type AnalysisFixture } from "./lib/fixtures/analysisFixtures";
+import { sampleAsFile, type SampleOutfit, type SampleSubject } from "./lib/samples/sampleSubjects";
+import { clearSession, loadSession, saveSession, type PersistedSession } from "./lib/session/persistedSession";
+import { toStoredImage } from "./lib/session/sourceImage";
 import type { FacialColorTonesResult, FitzpatrickScale } from "./lib/youcam/types";
 
-const API_KEY = import.meta.env.VITE_YOUCAM_API_KEY as string;
-const SECRET_KEY = import.meta.env.VITE_YOUCAM_SECRET_KEY as string | undefined;
 
 /**
  * `?fixture=<id>` replays a stored analysis instead of calling the analysis APIs.
@@ -29,7 +28,7 @@ const SECRET_KEY = import.meta.env.VITE_YOUCAM_SECRET_KEY as string | undefined;
  */
 const FIXTURE = getFixture(new URLSearchParams(window.location.search).get("fixture"));
 
-type Stage = "intro" | "analysing" | "outfit" | "looks" | "live";
+type Stage = "intro" | "analysing" | "outfit" | "looks";
 
 /**
  * How many of the ten templates each person is shown.
@@ -47,9 +46,43 @@ const LOOKS_SHOWN = 5;
 const ANALYSIS_STEPS = 3;
 const RENDER_STEPS = LOOKS_SHOWN;
 
-export default function UndertoneApp() {
+/**
+ * Rebuild a restored session's looks from its stored inputs.
+ *
+ * Only the renders survive a reload, since they are the one thing that cannot be recomputed;
+ * everything else is derived again. Replaying stored FilledLooks instead meant an engine change
+ * showed stale text and colours after a refresh, with nothing to indicate it.
+ *
+ * Null when the fresh selection no longer matches what was rendered: selection itself changed, so
+ * the images on file are of looks we would no longer offer.
+ */
+function rehydrate(session: PersistedSession): RenderedLook[] | null {
+  const { colors } = normaliseMeasured(session.colors);
+  const influence = session.garment?.length ? garmentInfluence(session.garment) : undefined;
+  const fresh = selectLooks(colors, session.fitzpatrick, session.looks.length, influence);
+
+  const renders = new Map(session.looks.map((entry) => [entry.look.templateId, entry.imageUrl]));
+  const rebuilt: RenderedLook[] = [];
+  for (const look of fresh) {
+    const imageUrl = renders.get(look.templateId);
+    if (!imageUrl) return null;
+    rebuilt.push({ look, imageUrl });
+  }
+  return rebuilt;
+}
+
+export default function TouchstoneApp() {
   // Restore a completed analysis if this tab reloaded — see lib/session/persistedSession.ts.
-  const restored = useState(() => loadSession())[0];
+  const restored = useState(() => {
+    const session = loadSession();
+    if (!session) return null;
+    const looks = rehydrate(session);
+    if (!looks) {
+      clearSession();
+      return null;
+    }
+    return { ...session, looks };
+  })[0];
 
   const [stage, setStage] = useState<Stage>(restored ? "looks" : "intro");
   // Two views of the same thing, deliberately. `colors` is what has arrived so far and may be
@@ -63,7 +96,18 @@ export default function UndertoneApp() {
   );
   const [profile, setProfile] = useState<ColourProfile | null>(restored?.profile ?? null);
   const [looks, setLooks] = useState<RenderedLook[]>(restored?.looks ?? []);
-  const [selected, setSelected] = useState<RenderedLook | null>(null);
+  // The counterfactual render, once she asks for it. Not persisted: it is an argument, not a
+  // result, and it is one unit to produce again.
+  const [comparisonUrl, setComparisonUrl] = useState<string | null>(null);
+  const [comparing, setComparing] = useState(false);
+
+  // Her photo for the "before" side of the foundation wipe: a live object URL, plus a downscaled
+  // copy that survives a reload. See lib/session/sourceImage.ts.
+  const [sourceUrl, setSourceUrl] = useState<string | null>(restored?.sourceImage ?? null);
+  // Computed during the analysis rather than at save time, so it adds no latency to rendering.
+  const [sourceImage, setSourceImage] = useState<string | null>(restored?.sourceImage ?? null);
+  const [foundationRenders, setFoundationRenders] = useState<Record<string, string>>({});
+  const [foundationBusy, setFoundationBusy] = useState<string | null>(null);
   const [stepsDone, setStepsDone] = useState(0);
   const [status, setStatus] = useState("Uploading your photo");
   const [error, setError] = useState<string | null>(null);
@@ -72,12 +116,12 @@ export default function UndertoneApp() {
   // because a reload should not silently drop the outfit a look was built around.
   const [fileId, setFileId] = useState<string | null>(restored?.fileId ?? null);
   const [fitzpatrick, setFitzpatrick] = useState<FitzpatrickScale | null>(restored?.fitzpatrick ?? null);
-  const [garmentSwatches, setGarmentSwatches] = useState<GarmentSwatch[] | null>(null);
+  const [garmentSwatches, setGarmentSwatches] = useState<GarmentSwatch[] | null>(restored?.garment ?? null);
   const [garmentPreview, setGarmentPreview] = useState<string | null>(null);
   const [garmentBusy, setGarmentBusy] = useState(false);
   const [garmentError, setGarmentError] = useState<string | null>(null);
 
-  const client = useMemo(() => new YouCamClient({ apiKey: API_KEY }), []);
+  const client = useMemo(() => new YouCamClient(), []);
 
   const reset = useCallback(() => {
     clearSession();
@@ -86,7 +130,6 @@ export default function UndertoneApp() {
     setMeasured(null);
     setProfile(null);
     setLooks([]);
-    setSelected(null);
     setStepsDone(0);
     setStatus("Uploading your photo");
     setError(null);
@@ -95,15 +138,26 @@ export default function UndertoneApp() {
     setGarmentSwatches(null);
     setGarmentPreview(null);
     setGarmentError(null);
+    setSourceUrl(null);
+    setSourceImage(null);
+    setFoundationRenders({});
+    setFoundationBusy(null);
   }, []);
 
   const handleCapture = useCallback(
-    async (file: File) => {
+    // `replay` lets a sample subject supply its own stored analysis. Defaulting to the URL
+    // param keeps the camera path behaving exactly as before.
+    async (file: File, replay: AnalysisFixture | null = FIXTURE) => {
       setStage("analysing");
       setError(null);
       const advance = () => setStepsDone((n) => n + 1);
 
       try {
+        // The comparison needs her photo as an image, not as the file id the API works in.
+        setSourceUrl(URL.createObjectURL(file));
+        // Not awaited: only has to be ready by the time a finished run is saved.
+        void toStoredImage(file).then(setSourceImage);
+
         const uploadedFileId = await client.uploadFile(file);
         advance();
         setStatus("Measuring your colouring");
@@ -111,11 +165,11 @@ export default function UndertoneApp() {
         let raw: FacialColorTonesResult["color"];
         let fitzpatrick: FitzpatrickScale | null;
 
-        if (FIXTURE) {
+        if (replay) {
           // Replay a stored analysis: identical output for the same face, at 0 units instead of
           // 30. Rendering below still runs for real.
-          raw = FIXTURE.colors;
-          fitzpatrick = FIXTURE.fitzpatrick;
+          raw = replay.colors;
+          fitzpatrick = replay.fitzpatrick;
           advance();
           advance();
         } else {
@@ -146,12 +200,12 @@ export default function UndertoneApp() {
         // too: `?fixture=mine` deserialises from localStorage and can be missing fields written
         // by an older build, and a bypass here is what let a partial record reach the engine.
         const { colors: normalised, inferred } = normaliseMeasured(raw);
-        if (inferred.length) console.info("[undertone] inferred (not measured):", inferred.join(", "));
+        if (inferred.length) console.info("[touchstone] inferred (not measured):", inferred.join(", "));
         setColors(normalised);
         setMeasured(normalised);
 
         // Remember it so `?fixture=mine` can replay this exact analysis for free.
-        if (!FIXTURE && fitzpatrick) rememberAnalysis(normalised, fitzpatrick);
+        if (!replay && fitzpatrick) rememberAnalysis(normalised, fitzpatrick);
 
         const derived = analyseColouring(normalised, fitzpatrick);
         setProfile(derived);
@@ -171,9 +225,97 @@ export default function UndertoneApp() {
   );
 
   /**
+   * A sample subject through the ordinary capture path: fetched as a File so upload, analysis and
+   * rendering are the code the camera reaches. A stored analysis replays its 30 units; the
+   * renders always run for real.
+   */
+  const handleSample = useCallback(
+    async (subject: SampleSubject) => {
+      setStage("analysing");
+      setStatus("Loading the photo");
+      setError(null);
+      try {
+        const file = await sampleAsFile(subject);
+        await handleCapture(file, subject.fixtureId ? getFixture(subject.fixtureId) : null);
+      } catch (err) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [handleCapture],
+  );
+
+  /**
    * Render the looks. Split out from the analysis so the outfit step can sit between them —
    * this is the part that costs a unit per look, so it runs once, with the outfit already known.
    */
+  /**
+   * Render one look again with the depth adaptation switched off, so the two can be compared on
+   * her own face rather than as two hex values.
+   *
+   * One unit: the analysis is 30 of the 33 a full run costs, and re-rendering against an
+   * already-analysed image is 1 per look. Deliberately on request rather than rendered up front —
+   * a user has not asked to see the worse version of her face, and on colouring where the rule
+   * never fires there is nothing to show.
+   */
+  const renderConventional = useCallback(
+    async (look: FilledLook) => {
+      if (!fileId) return;
+      setComparing(true);
+      try {
+        // Only the lip colour is substituted. Everything else is the look as rendered, so the
+        // comparison isolates the placement rule instead of showing two different looks.
+        const effects = look.effects.map((effect) =>
+          effect.category === "lip_color"
+            ? { ...effect, palettes: effect.palettes.map((p) => ({ ...p, color: look.conventionalLip })) }
+            : effect,
+        );
+        const result = await client.runMakeupVto({ src_file_id: fileId, effects, version: "1.0" });
+        setComparisonUrl(result.url);
+      } catch (err) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setComparing(false);
+      }
+    },
+    [fileId],
+  );
+
+  /**
+   * Render one foundation shade onto her own photo, for the before/after wipe.
+   *
+   * `skin_smooth` is pinned to zero, which is why this does not reuse the look renderer: the API
+   * applies it at 50 when omitted, so the "after" side would come back airbrushed as well as
+   * tinted and the comparison would be demonstrating a beauty filter.
+   */
+  const renderFoundation = useCallback(
+    async (shadeId: string, hex: string) => {
+      if (!fileId) return;
+      setFoundationBusy(shadeId);
+      try {
+        const result = await client.runMakeupVto({
+          src_file_id: fileId,
+          version: "1.0",
+          effects: [
+            { category: "skin_smooth", skinSmoothStrength: 0, skinSmoothColorIntensity: 0 },
+            {
+              category: "foundation",
+              palettes: [{ color: hex, colorIntensity: 100, glowIntensity: 0, coverageIntensity: 100 }],
+            },
+          ],
+        });
+        setFoundationRenders((current) => ({ ...current, [shadeId]: result.url }));
+      } catch (err) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setFoundationBusy(null);
+      }
+    },
+    [client, fileId],
+  );
+
   const renderLooks = useCallback(
     async (garment?: GarmentSwatch[]) => {
       if (!fileId || !measured) return;
@@ -204,7 +346,17 @@ export default function UndertoneApp() {
         // Only a finished run is worth persisting: it cost 35 API units, and an in-flight one has
         // pending promises that could not be resumed anyway.
         if (profile) {
-          saveSession({ fileId, colors: measured, profile, fitzpatrick, looks: rendered, selectedTemplateId: null });
+          saveSession({
+            fileId,
+            colors: measured,
+            profile,
+            fitzpatrick,
+            // So a reload derives the same five, not the five she would get with no outfit.
+            garment: garment ?? null,
+            sourceImage,
+            looks: rendered,
+            selectedTemplateId: null,
+          });
         }
       } catch (err) {
         console.error(err);
@@ -246,12 +398,32 @@ export default function UndertoneApp() {
     [client, measured],
   );
 
-  const camera = useCameraKit({ apiKey: API_KEY, secretKey: SECRET_KEY, onCapture: handleCapture });
+  /** A shipped garment through the ordinary outfit path. Fetched here so a failed fetch lands in
+   *  the same recoverable error state as a failed upload. */
+  const handleSampleOutfit = useCallback(
+    async (outfit: SampleOutfit) => {
+      setGarmentBusy(true);
+      setGarmentError(null);
+      try {
+        await handleOutfitPhoto(await sampleAsFile(outfit));
+      } catch (err) {
+        console.error(err);
+        setGarmentError("We couldn't load that outfit. Try another, or skip this step.");
+      } finally {
+        setGarmentBusy(false);
+      }
+    },
+    [handleOutfitPhoto],
+  );
+
+  const camera = useCameraKit({ onCapture: handleCapture });
 
   // The analysing screen is shown for both passes; only the render pass has a file id in hand.
   const looksPending = fileId !== null;
 
-  const fatal = error ?? (!API_KEY ? "VITE_YOUCAM_API_KEY is not set in .env.local" : null) ?? camera.error;
+  // Nothing to check for a missing client key any more: there is no client key. A missing
+  // server key surfaces from the proxy on the first call instead.
+  const fatal = error ?? camera.error;
 
   return (
     <>
@@ -262,7 +434,11 @@ export default function UndertoneApp() {
       {fatal ? (
         <ErrorState message={fatal} onRetry={reset} />
       ) : stage === "intro" ? (
-        <IntroScreen onStart={camera.open} disabled={!camera.ready} />
+        <IntroScreen
+          onStart={camera.open}
+          onSample={(subject) => void handleSample(subject)}
+          disabled={!camera.ready}
+        />
       ) : stage === "analysing" ? (
         <AnalysingScreen
           colors={colors}
@@ -273,6 +449,7 @@ export default function UndertoneApp() {
       ) : stage === "outfit" ? (
         <OutfitScreen
           onPhoto={handleOutfitPhoto}
+          onSampleOutfit={(outfit) => void handleSampleOutfit(outfit)}
           swatches={garmentSwatches}
           previewUrl={garmentPreview}
           busy={garmentBusy}
@@ -286,21 +463,17 @@ export default function UndertoneApp() {
           colors={measured}
           profile={profile}
           onStartOver={reset}
-          onSelect={(rendered) => {
-            setSelected(rendered);
-            setStage("live");
-          }}
+          onCompare={(look) => void renderConventional(look)}
+          comparisonUrl={comparisonUrl}
+          comparing={comparing}
+          sourceUrl={sourceUrl}
+          foundationRenders={foundationRenders}
+          foundationBusy={foundationBusy}
+          onRenderFoundation={(shadeId, hex) => void renderFoundation(shadeId, hex)}
           onImageExpired={() => {
             clearSession();
             setError("Your looks have expired. Renders are only kept for a couple of hours.");
           }}
-        />
-      ) : selected && measured ? (
-        <LivePreviewScreen
-          rendered={selected}
-          skinColor={measured.skin_color}
-          lipBaseColor={measured.lip_color}
-          onBack={() => setStage("looks")}
         />
       ) : null}
     </>

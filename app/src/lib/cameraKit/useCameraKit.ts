@@ -3,8 +3,6 @@ import { loadCameraKitScript } from "./loadCameraKit";
 import { normalizeCapturedImage } from "./normalizeCapturedImage";
 
 interface UseCameraKitOptions {
-  apiKey: string;
-  secretKey?: string;
   onCapture: (file: File) => void;
 }
 
@@ -31,7 +29,7 @@ let initialised = false;
  *  - Readiness is gated on `window.YMK` existing, not on `YMKAsyncInit`, which never fires.
  *  - Nothing closes the UI automatically after a capture; call `close()` explicitly.
  */
-export function useCameraKit({ apiKey, secretKey, onCapture }: UseCameraKitOptions): UseCameraKitResult {
+export function useCameraKit({ onCapture }: UseCameraKitOptions): UseCameraKitResult {
   const [ready, setReady] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +46,12 @@ export function useCameraKit({ apiKey, secretKey, onCapture }: UseCameraKitOptio
 
         if (!initialised) {
           initialised = true;
-          window.YMK.init(secretKey ? { apiKey, secretKey } : { apiKey });
+          // No credentials. Confirmed live 2026-08-11: YMK.init() does not validate a key
+          // client-side and the capture UI does not call YouCam's backend just to open — we only
+          // need faceDetectionCaptured to hand us an image, which then goes through our own s2s
+          // calls behind the proxy. Passing the s2s key here was putting it in the bundle for
+          // nothing.
+          window.YMK.init();
 
           window.YMK.addEventListener("faceDetectionCaptured", async (payload) => {
             // The SDK leaves its UI up after a capture. Dismiss it before handing the image

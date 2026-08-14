@@ -56,7 +56,7 @@ export async function normalizeCapturedImage(payload: CapturedPayload): Promise<
 
   console.error("normalizeCapturedImage: no recognizable image field in payload:", payload);
   throw new Error(
-    "Couldn't find an image in the faceDetectionCaptured payload — check the console log above " +
+    "Couldn't find an image in the faceDetectionCaptured payload. Check the console log above " +
       "for its real shape and update normalizeCapturedImage accordingly.",
   );
 }

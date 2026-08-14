@@ -1,5 +1,5 @@
 import { useState } from "react";
-import UndertoneApp from "./UndertoneApp";
+import TouchstoneApp from "./TouchstoneApp";
 import LipBlendSpike from "./spikes/LipBlendSpike";
 import CameraCaptureSpike from "./spikes/CameraCaptureSpike";
 import EndToEndSpike from "./spikes/EndToEndSpike";
@@ -27,7 +27,7 @@ function App() {
     return <Spike />;
   }
 
-  return <UndertoneApp />;
+  return <TouchstoneApp />;
 }
 
 export default App;

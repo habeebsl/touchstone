@@ -2,10 +2,13 @@ import { useRef, useState } from "react";
 import MobileFrame from "../components/ui/MobileFrame";
 import Swatch from "../components/ui/Swatch";
 import type { GarmentSwatch } from "../lib/garment/palette";
+import { SAMPLE_OUTFITS, type SampleOutfit } from "../lib/samples/sampleSubjects";
 
 interface OutfitScreenProps {
   /** Uploads, cuts out the background and reads the colours. Costs 2 units. */
   onPhoto: (file: File) => Promise<void>;
+  /** The same, for a garment we ship. Fetched by the app so one error path covers both. */
+  onSampleOutfit: (outfit: SampleOutfit) => void;
   /** Null until a photo has been read. Empty array means nothing usable was found. */
   swatches: GarmentSwatch[] | null;
   /** Local preview of her photo, shown while the colours are being read. */
@@ -29,6 +32,7 @@ interface OutfitScreenProps {
  */
 export default function OutfitScreen({
   onPhoto,
+  onSampleOutfit,
   swatches,
   previewUrl,
   busy,
@@ -92,6 +96,38 @@ export default function OutfitScreen({
               if (file) void onPhoto(file);
             }}
           />
+
+          {/* As on the intro screen: the demonstration sits under the real thing. An outfit photo
+              is the input a judge is least likely to have to hand. */}
+          <div className="mt-4">
+            <p className="font-label mb-3 text-center text-xs uppercase tracking-widest text-muted">
+              Or pick one of these
+            </p>
+            <ul className="grid grid-cols-3 gap-3">
+              {SAMPLE_OUTFITS.map((outfit) => (
+                <li key={outfit.id}>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    title={outfit.note}
+                    onClick={() => onSampleOutfit(outfit)}
+                    className="transition-interactive group flex w-full flex-col gap-2 rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <img
+                      src={outfit.thumb}
+                      alt={`${outfit.label} dress`}
+                      width={320}
+                      height={320}
+                      className="aspect-square w-full rounded-lg border border-border object-cover transition-opacity group-hover:opacity-80"
+                    />
+                    <span className="font-body text-center text-xs leading-tight text-muted">
+                      {outfit.label}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       ) : swatches.length === 0 ? (
         <p className="font-body text-base text-muted">
@@ -152,7 +188,7 @@ export default function OutfitScreen({
           onClick={onSkip}
           className="font-body transition-interactive rounded-sm px-4 py-3 text-sm text-muted underline underline-offset-4 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
-          Skip — just show me what suits me
+          Skip and show me what suits me
         </button>
       </div>
     </MobileFrame>
