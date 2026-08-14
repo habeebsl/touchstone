@@ -20,10 +20,8 @@ interface IntroScreenProps {
  */
 export default function IntroScreen({ onStart, onSample, disabled = false }: IntroScreenProps) {
   return (
-    <MobileFrame className="justify-between px-8 py-12">
-      <div className="h-6 w-full" />
-
-      <div className="mb-auto mt-10 flex flex-col gap-6 text-center">
+    <MobileFrame className="justify-between px-8 py-10">
+      <div className="mb-auto mt-6 flex flex-col gap-5 text-center">
         <h1 className="font-headline text-[2.25rem] font-medium leading-[1.1] tracking-tight text-balance text-foreground">
           A mirror that already knows what works on you.
         </h1>
@@ -32,7 +30,7 @@ export default function IntroScreen({ onStart, onSample, disabled = false }: Int
         </p>
       </div>
 
-      <div className="w-full pb-4 pt-10">
+      <div className="w-full pt-8">
         <button
           type="button"
           onClick={onStart}
@@ -42,9 +40,11 @@ export default function IntroScreen({ onStart, onSample, disabled = false }: Int
           {disabled ? "Preparing camera…" : "Take a selfie"}
         </button>
 
-        <div className="mt-8">
+        <div className="mt-6">
+          {/* "Generated" carries the disclosure that used to be a paragraph underneath. Anyone who
+              assumes these are customers has been misled by us, and one word costs no lines. */}
           <p className="font-label mb-3 text-center text-xs uppercase tracking-widest text-muted">
-            Or try someone else's colouring
+            Or try a generated face
           </p>
           <ul className="grid grid-cols-3 gap-3">
             {SAMPLE_SUBJECTS.map((subject) => (
@@ -69,11 +69,6 @@ export default function IntroScreen({ onStart, onSample, disabled = false }: Int
               </li>
             ))}
           </ul>
-          {/* Said here rather than in the write-up alone. Anyone who assumes these are customers
-              has been misled by us, and the honest version costs one line. */}
-          <p className="font-body mt-3 text-center text-xs leading-relaxed text-muted">
-            Generated faces, chosen to span skin depth. Everything measured from them is real.
-          </p>
         </div>
       </div>
     </MobileFrame>
