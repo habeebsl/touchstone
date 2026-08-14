@@ -1,4 +1,4 @@
-# Undertone — Pre-Build Validation Plan
+# Touchstone — Pre-Build Validation Plan
 
 Purpose: derisk every unproven assumption before writing the full app. Each item below is a small, isolated spike with a clear pass/fail condition. Do not start the "real" build until the items marked **Blocking** have a result — a failure on any of them changes the architecture, not just a detail, so finding out early is the entire point of this doc.
 

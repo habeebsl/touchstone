@@ -1,4 +1,4 @@
-# Undertone — Design System
+# Touchstone — Design System
 
 Source inputs: the beauty/editorial entries from the `ui-ux-pro-max` skill database, the measured
 constraints in [flow-spec.md](./flow-spec.md), and the product thesis in the overview doc.

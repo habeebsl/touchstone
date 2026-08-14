@@ -130,7 +130,7 @@ export const ANALYSIS_FIXTURES: AnalysisFixture[] = [
 
 // --- Remembering a real analysis ------------------------------------------------------------
 
-const LAST_ANALYSIS_KEY = "undertone.lastAnalysis.v1";
+const LAST_ANALYSIS_KEY = "touchstone.lastAnalysis.v1";
 
 /**
  * Store a genuine analysis so later runs can replay it instead of paying for it again.
@@ -179,7 +179,7 @@ export function getFixture(id: string | null): AnalysisFixture | null {
   if (id === "mine") {
     const remembered = getRememberedAnalysis();
     if (!remembered) {
-      console.warn("[undertone] ?fixture=mine but nothing cached yet — running a real analysis and remembering it.");
+      console.warn("[touchstone] ?fixture=mine but nothing cached yet — running a real analysis and remembering it.");
     }
     return remembered;
   }

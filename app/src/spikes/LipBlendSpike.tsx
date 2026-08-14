@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 
 // Prebuild-validation spike #1: does client-side blend-mode compositing look like real
-// lipstick, not a flat color overlay? See /undertone-prebuild-validation.md item 1.
+// lipstick, not a flat color overlay? See /touchstone-prebuild-validation.md item 1.
 //
 // Outer lip contour, MediaPipe 468-point face mesh topology (same indices as FaceMesh).
 // Closed loop tracing the outer boundary of both lips + mouth corners.

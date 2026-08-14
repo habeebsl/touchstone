@@ -71,7 +71,7 @@ function rehydrate(session: PersistedSession): RenderedLook[] | null {
   return rebuilt;
 }
 
-export default function UndertoneApp() {
+export default function TouchstoneApp() {
   // Restore a completed analysis if this tab reloaded — see lib/session/persistedSession.ts.
   const restored = useState(() => {
     const session = loadSession();
@@ -200,7 +200,7 @@ export default function UndertoneApp() {
         // too: `?fixture=mine` deserialises from localStorage and can be missing fields written
         // by an older build, and a bypass here is what let a partial record reach the engine.
         const { colors: normalised, inferred } = normaliseMeasured(raw);
-        if (inferred.length) console.info("[undertone] inferred (not measured):", inferred.join(", "));
+        if (inferred.length) console.info("[touchstone] inferred (not measured):", inferred.join(", "));
         setColors(normalised);
         setMeasured(normalised);
 

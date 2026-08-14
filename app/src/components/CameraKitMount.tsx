@@ -23,12 +23,17 @@ export default function CameraKitMount({ open }: CameraKitMountProps) {
       aria-hidden={!open}
       className={
         open
-          ? "fixed inset-0 z-[9999] bg-black"
+          ? "fixed inset-0 z-[9999] flex justify-center bg-black"
           : "pointer-events-none fixed left-0 top-0 h-0 w-0 overflow-hidden opacity-0"
       }
       style={open ? undefined : { visibility: "hidden" }}
     >
-      <div id="YMK-module" className="h-full w-full" />
+      {/* Capped and centred rather than filling the viewport. The SDK lays its own UI out inside
+          whatever box it is given, so on a desktop window it sat against the left edge of a
+          1400px one. The cap matches the column the rest of the app uses; `justify-center` alone
+          centres it, since the default `stretch` is what keeps it full height for the measurement
+          the SDK takes on open. */}
+      <div id="YMK-module" className="h-full w-full max-w-[480px]" />
       <div id="captured-results" className="hidden" />
     </div>
   );

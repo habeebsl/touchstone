@@ -1,4 +1,4 @@
-# Undertone — Project Overview
+# Touchstone — Project Overview
 
 ## One-line pitch
 A mirror that already knows what works on you: snap a selfie, get 3 makeup looks personalized to your actual skin/eye/hair color, tap one, see it live on your face.

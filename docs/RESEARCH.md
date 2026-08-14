@@ -85,7 +85,7 @@ imply otherwise.
 - **Seoul studios now take a spectrophotometer reading first** — skin brightness, redness and
   yellowness as numbers — before the traditional fabric draping.
 
-That last point is the sharpest framing available to us: *Undertone does from a selfie what those
+That last point is the sharpest framing available to us: *Touchstone does from a selfie what those
 studios do with an instrument.*
 
 ### Undertone is genuinely hard to self-assess

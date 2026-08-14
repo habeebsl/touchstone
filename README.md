@@ -1,4 +1,4 @@
-# Undertone
+# Touchstone
 
 Makeup looks built from two things that can actually be measured about you: your colouring, and
 the outfit you're about to wear. Every shade is checked to make sure you'd be able to see it on

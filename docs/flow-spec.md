@@ -1,136 +1,171 @@
-# Undertone — Flow & Screen Spec
+# Touchstone: flow and screen spec
 
-Purpose: the concrete screen inventory for the build, and the constraints each screen has to
-respect. The overview doc deliberately stopped at scope ("this doc is scope, not spec") and never
-specified screens. This fills that gap.
+What the product actually is, screen by screen, with the constraint each screen has to respect.
 
-Everything here is grounded in what the five prebuild-validation spikes actually proved — not
-assumptions. Where a number appears (latency, etc.) it was measured, not estimated.
+This describes what shipped. An earlier version of this document specified a three-look flow with
+a live AR preview as its final state and no outfit step; none of that survived contact with the
+build. Where a number appears it was measured or read off the API console, not estimated.
+
+---
 
 ## The whole product, as states
 
-Five states. **We only design four of them** — Camera Kit owns its own UI.
+Four states. Camera Kit owns a fifth and we do not design it.
 
 ```
-[1 Intro] → [2 Capture — Camera Kit owns this] → [3 Analyzing] → [4 Three looks] → [5 Live preview]
-                                                                        ↑______________|
-                                                                     (back to looks)
+[1 Intro] ──> [2 Capture: Camera Kit owns this] ──> [3 Analysing] ──> [4 Outfit] ──> [5 Looks]
+     │                                                                    │              │
+     └──> sample face ────────────────────────────────────────────────────┘        shade sheet
+                                                                    (skippable)   placement proof
+                                                                                foundation match
 ```
 
-There is no browsing, no accounts, no catalog, no purchase step. Per the overview doc's non-goals.
+No accounts, no catalogue, no purchase step, no saved looks.
 
 ---
 
 ## 1. Intro
 
-The only job: get the user to tap once and open the camera. A judge watching the demo should
-understand the entire value proposition before anything loads.
+One job: get to a face. One headline, one button, and three sample faces underneath.
 
-- One line of copy + one button.
-- No onboarding carousel, no permission pre-explainer, no sign-in.
-- Camera permission is requested by Camera Kit itself on open — don't build a custom pre-prompt.
+- **The samples are not decoration.** Without them, anyone on a desktop without a webcam, or
+  anyone unwilling to photograph themselves, cannot reach the product at all. They ignore the
+  camera-ready flag, because the point of a sample is that it needs no camera.
+- They span Fitzpatrick II, IV and VI deliberately. The engine's central claim is about how
+  colour placement behaves across skin depth, and three faces from one band would demonstrate
+  nothing.
+- They are generated faces, and the screen says so in the label rather than in a footnote.
+- A sample enters through the ordinary path: fetched, handed over as a `File`, uploaded, analysed,
+  rendered. There is one flow, so the sample flow cannot drift from the real one.
 
-## 2. Capture — **Camera Kit owns this screen**
+## 2. Capture: Camera Kit owns this screen
 
-**This is the most important constraint in this document.** The YouCam JS Camera Kit renders its
-own fullscreen capture UI into a `<div id="YMK-module">` mount point. It brings its own framing
-guides, shutter button, camera-flip control, and face-position validation. We cannot meaningfully
-restyle it.
+**The most important constraint in this document.** The YouCam JS Camera Kit renders its own
+fullscreen capture UI into a `<div id="YMK-module">` mount. It brings its own framing guides,
+shutter, camera flip and face-position validation, and cannot meaningfully be restyled.
 
-Design implications:
-- **Do not design a capture screen.** Any mockup showing a custom shutter button, custom framing
-  overlay, or custom guidance text for this step is not buildable as drawn.
-- What we *do* own is the hand-off in both directions: the button that opens it (state 1), and
-  what happens the instant it returns an image (state 3).
-- Camera Kit's own face-position/angle validation runs before it hands anything back, which means
-  most bad inputs never reach our code. Don't design redundant "move closer / face the camera"
-  error UI — that's Camera Kit's job and it already does it.
+- **Do not design a capture screen.** Any mockup with a custom shutter or framing overlay is not
+  buildable as drawn.
+- What we own is the handoff in both directions: the button that opens it, and what happens the
+  instant it returns an image.
+- Its own face-position validation runs before it hands anything back, so most bad inputs never
+  reach our code. No redundant "move closer" UI.
+- Camera Kit needs no API key. Confirmed live: `YMK.init()` does not validate one client-side.
 
-## 3. Analyzing
+## 3. Analysing
 
-**This state is load-bearing and cannot be a spinner.** Measured latency from the spikes:
+**Load-bearing, and cannot be a spinner.** Measured latency:
 
 | Step | Measured |
-|---|---|
-| File upload (File API + S3 PUT) | ~1s, varies with connection |
+| --- | --- |
+| Upload (File API + presigned PUT) | ~1s, varies with connection |
 | Facial Color Tones | ~1.5s |
-| Fitzpatrick | ~1.9s (runs in parallel with the above) |
-| Makeup VTO, per look | ~1.5–2s |
+| Fitzpatrick | ~1.9s, in parallel with the above |
+| Makeup VTO, per look | ~1.5-2s |
 
-Three looks means the realistic window between "photo taken" and "looks ready" is roughly
-**5–8 seconds**. That is far too long for an undifferentiated spinner, and it is also the single
-best opportunity in the product to make the personalization feel *earned* rather than instant-and-
-therefore-suspicious.
+The analysis resolves well before the renders do, so its results are revealed as they land: her
+measured skin, eye and hair colour as real swatches of her own colouring, then the derived
+Fitzpatrick type. That fills the wait with evidence that something was genuinely measured, which
+is the whole trust problem this product exists to answer.
 
-Design opportunity — we have real data to reveal progressively here, because the analysis
-completes well before the renders do:
-- Extracted skin tone, eye color, hair color come back as **actual hex values** ~2s in.
-- Fitzpatrick type (I–VI) comes back at the same time.
-- Showing these *as they resolve* — real swatches of the user's own coloring — fills the wait with
-  proof that something was genuinely measured. This directly counters the "TikTok filter is just
-  guessing" problem the overview doc identifies as the core trust issue.
+The progress bar is scaled to whichever pass is running, analysis or rendering, rather than to a
+total that would sit still through the outfit step. Nothing about it is fabricated.
 
-Do not fabricate progress. The steps are real and sequential; the UI should reflect the real ones.
+## 4. Outfit (optional)
 
-## 4. Three looks
+Sits between the analysis and the renders, because rendering is the expensive part and the outfit
+changes which looks are worth rendering at all. Asking afterwards would mean paying twice.
 
-Three rendered images of the user's own face, returned from Makeup VTO.
+- Photograph a garment, pick one of three we ship, or skip. Skipping is a first-class path, not a
+  failure: plenty of people are not dressing for anything in particular.
+- The photo goes through `sod` background removal, then palette extraction from the surviving
+  pixels. Perfect Corp has no garment-analysis endpoint, so the colours come from the image.
+- Extracted swatches are shown ticked, with anything that is not part of the outfit unticked by
+  the user. The common case is that we got it right and should cost zero taps.
+- The three shipped garments are chosen by **measured chroma**, one per branch of the influence
+  rule, so the demo shows three different behaviours rather than three colours:
 
-- Labelled **by mood — "Soft", "Polished", "Bold"** — never by template name, never by a technical
-  descriptor. Per the overview doc: "the personalization should feel discovered, not chosen from a
-  menu."
-- Each look is a full-face render including eyeshadow/liner/brows, because the static VTO render
-  handles those convincingly.
-- Tapping one goes to live preview.
-- A secondary "see more looks" surface is permitted but is explicitly **not** the demo path — it
-  must not compete with the tap-to-live-preview action.
+| Garment | Chroma | Loudness | Behaviour |
+| --- | --- | --- | --- |
+| Cobalt | 0.172 | 1.00 | Leads; the looks step back |
+| Clay | 0.074 | 0.45 | Carries a hue; the eye picks it up |
+| Charcoal | 0.009 | 0 | No usable hue; the makeup leads |
 
-Note the rendered image URLs are **pre-signed S3 links that expire in 2 hours**. Fine for a session,
-but they cannot be treated as durable — no "save your looks" feature that assumes the URL persists.
+## 5. Looks
 
-## 5. Live preview
+Five renders of her own face, chosen from eleven templates.
 
-The emotional high point. User sees the selected look on their live face, moving in real time.
+- **Mood labels only.** Never a template id, never a technical descriptor.
+- Each carries a two-sentence line: what the look is going for, then why it was picked for her.
+  The second sentence is computed for the set rather than per look, so no two cards can give the
+  same reason.
+- Three shades per card with **names**, not hex. "Vivid brick" is something she can say at a
+  counter; `#c14f35` is not. The full ten-shade palette is behind a tap.
+- **This is the one screen that widens on desktop.** The steps before it ask one thing at a time.
+  This one is five renders meant to be compared, and a phone column can only ever show one.
 
-**Hard constraint: lip color + blush only.** The live layer is client-side blend-mode compositing
-over MediaPipe face landmarks — it does not render eyeshadow, liner, lashes, or brows. Those exist
-only in the static render from state 4.
+Rendered URLs are **pre-signed and expire in two hours**. A session is cached for 90 minutes so a
+reload never shows a broken image, and only the renders are cached: everything else is derived
+again from the stored measurements, so an engine change is never masked by a stale session.
 
-Design implications:
-- Do not mock up a live preview showing dramatic eye makeup. It cannot be built for this step.
-- The transition from the static render (full look) to live preview (lips + blush) is a visible
-  fidelity drop if handled naively. Worth designing deliberately — e.g. keeping the static render
-  visible alongside/behind the live view so the full look stays present as reference rather than
-  appearing to vanish.
-- Per the overview doc, this distinction should be stated confidently in the pitch, not hidden:
-  *"YouCam's Makeup VTO generates the studio-quality personalized look; our real-time layer lets
-  you preview that exact look live before committing."*
+### Three surfaces below the looks
+
+**Shade sheet.** Every colour in one look, in the order a face is made up, each named and with its
+value. A bottom sheet on a phone, a centred dialog on a laptop.
+
+**Placement proof.** The engine's one real claim, shown rather than asserted. Makeup colour is
+conventionally placed below the skin's own lightness, which is a fair-skin assumption: there is
+room below fair skin and almost none below deep skin, and what room exists is where sRGB cannot
+hold a saturated colour at all. Both shades come from the same engine with only that rule
+switched off. On the deepest colouring the conventional rule lands on "black" and the adapted one
+on "vivid raspberry". Rendering both on her face costs one unit and is offered, not forced.
+
+**Foundation match.** Three shades around her measurement, holding her undertone and moving only
+depth, compared against her bare photo with a drag-to-wipe. Three rather than one because the
+measurement will not carry one: `skin_color` is an average off a photo of the face, foundation is
+matched at the jaw, and her camera is uncalibrated.
+
+---
+
+## Cut: the live preview
+
+A real-time AR layer was built and removed. On a mid-range phone MediaPipe's face landmarking cost
+~113ms a frame, holding it at 6fps, and even rendering correctly it read as a filter rather than
+as makeup. Perfect Corp's own app does live AR makeup well, so shipping a worse version argued
+against the project rather than for it.
+
+The component remains in the repo, unrouted, with the compositing work intact. Its 38MB of wasm
+and model assets no longer ship.
 
 ---
 
 ## Cross-cutting constraints
 
-- **Mobile-first.** This is a selfie product; the demo will be shot on a phone.
-- **No accounts, no e-commerce, no LLM in the personalization path.** (Overview doc non-goals.)
-- **Total build must stay inside 1,000 free API units.** Per-task unit cost is still unconfirmed —
-  the one open item left from the spikes. Each full run of the flow costs 2 analysis tasks + 3 VTO
-  tasks, so iteration during design/tuning is not free. Worth confirming the per-task cost in the
-  YouCam console before heavy iteration.
-- **Failure states we actually need** (everything else is Camera Kit's job):
-  - Analysis or render task returns `error` — the API returns real error codes, and no units are
-    consumed on failure.
-  - Network/timeout during polling.
-  - User denies camera permission.
+- **Mobile-first**, with the looks screen the single exception.
+- **No accounts, no commerce, no LLM in the personalisation path.**
+- **One credential, never in the browser.** `YOUCAM_API_KEY` is deliberately not `VITE_`-prefixed,
+  since anything Vite sees as `VITE_*` is inlined into the built JavaScript. The client calls
+  `/api/youcam/...` with no credentials; a Vercel function attaches the header in production and a
+  Vite plugin does the same in dev.
+- **Failure states we own** (the rest is Camera Kit's job): a task returning `error`, a network
+  timeout during polling, an expired render URL, and an unreadable garment photo, which is
+  recoverable and leaves the analysis behind it untouched.
 
-## What's built already (spikes, working)
+## Unit costs, confirmed
 
-| Capability | Where |
-|---|---|
-| Camera Kit capture → `File` in app code | `src/components/CameraCapture.tsx` |
-| Upload + all three API calls, typed | `src/lib/youcam/client.ts` |
-| Rule-based color engine, 1 of 8–10 templates | `src/lib/colorEngine/template.ts` |
-| Live blend-mode lip + blush rendering | `src/components/LivePreview.tsx` |
-| Full end-to-end pass | `src/spikes/EndToEndSpike.tsx` |
+Read from the console's usage export on 11 Aug, not assumed.
 
-The architecture holds. What's missing for the real build is: the remaining 7–9 templates, the
-mood-labelling logic that picks which 3 to surface, and all of the actual design.
+| Call | Units |
+| --- | --- |
+| Facial Color Tones | 20 |
+| Fitzpatrick | 10 |
+| Makeup VTO, per render | 1 |
+| Background removal (`sod`) | 1 |
+
+**A full run costs 33 units**, of which **30 are spent before a single look is rendered**. An
+earlier estimate of 5 counted tasks rather than units and was wrong by a factor of about seven.
+
+Two consequences shaped the build. Re-rendering against an already-analysed image is cheap, which
+is what makes the placement counterfactual and the foundation comparison affordable at one unit
+each, on request. And iterating on the engine had to become free: stored analyses replay a real
+measurement at zero units, and seven check suites run offline against them.

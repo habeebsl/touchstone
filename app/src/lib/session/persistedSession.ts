@@ -4,7 +4,7 @@ import type { ColourProfile } from "../colorEngine/season";
 import type { FacialColorTonesResult, FitzpatrickScale } from "../youcam/types";
 
 // Bumped whenever the stored shape changes: a half-restored session is worse than none.
-const KEY = "undertone.session.v4";
+const KEY = "touchstone.session.v4";
 
 /**
  * Makeup VTO returns pre-signed URLs that expire after 2 hours. Expire our cache well before

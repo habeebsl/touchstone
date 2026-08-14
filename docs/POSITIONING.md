@@ -12,7 +12,7 @@ re-litigated, and so nothing in the submission claims otherwise.
 
 **The core loop already ships — in the sponsor's own app.** YouCam Makeup's AI Agent takes a
 selfie, determines a seasonal colour type from undertones, and recommends makeup shades, clothing
-colours and hair colour. That is Undertone's main flow, shipped, by Perfect Corp.
+colours and hair colour. That is Touchstone's main flow, shipped, by Perfect Corp.
 
 **Outfit → makeup is occupied too.**
 
@@ -169,8 +169,8 @@ Both senses intended. Alternative, for the rigour angle: *The colour analyst tha
 
 ### Devpost summary
 
-> Undertone builds makeup looks from two things it can actually measure: your colouring, and the
-> outfit you're about to wear. Perfect Corp's APIs read your skin, lips and undertone. Undertone
+> Touchstone builds makeup looks from two things it can actually measure: your colouring, and the
+> outfit you're about to wear. Perfect Corp's APIs read your skin, lips and undertone. Touchstone
 > turns that into five complete looks and renders them on your face.
 >
 > The part nobody else does is the check. Every shade has to clear a measured perceptual distance
@@ -188,7 +188,7 @@ Both senses intended. Alternative, for the rigour angle: *The colour analyst tha
 >
 > Every app I tried started somewhere else. A quiz. A season. A wall of five hundred shades.
 >
-> Undertone starts where she started. And before it hands you a colour, it checks that you'll
+> Touchstone starts where she started. And before it hands you a colour, it checks that you'll
 > actually be able to see it.
 
 ### Rules for all copy
