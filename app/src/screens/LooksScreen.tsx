@@ -42,14 +42,17 @@ interface LooksScreenProps {
  * measurement she cannot repeat to anyone, so without the name the swatch was the only part of
  * this she could act on, and only while looking at it.
  */
-function SwatchRow({ label, color }: { label: string; color: string }) {
+function SwatchCell({ label, color }: { label: string; color: string }) {
+  const name = nameShadeTitle(color);
   return (
-    <div className="flex min-w-0 items-center gap-3">
+    <div className="flex min-w-0 flex-col gap-1.5">
       <Swatch color={color} size="md" />
-      <span className="font-label w-10 shrink-0 text-xs uppercase tracking-widest text-muted">
-        {label}
+      <span className="font-label text-[0.65rem] uppercase tracking-widest text-muted">{label}</span>
+      {/* `title` because a long name truncates here. The sheet behind the card carries all ten
+          shades in full, so this is a preview rather than the record. */}
+      <span title={name} className="font-body min-w-0 truncate text-sm text-foreground">
+        {name}
       </span>
-      <span className="font-body min-w-0 truncate text-sm text-foreground">{nameShadeTitle(color)}</span>
     </div>
   );
 }
@@ -120,11 +123,15 @@ export default function LooksScreen({
                   follows her hair, contour sits a shade under her skin — and showing all of it
                   would bury the shades she might actually go and buy. The rest is on the look's
                   own screen, where she is considering one look rather than scanning five. */}
-              <div className="flex flex-col gap-3">
-                <SwatchRow label="Lip" color={rendered.look.lipColor} />
-                <SwatchRow label="Blush" color={rendered.look.blushColor} />
+              {/* Columns, not rows. Stacked, the three shades cost about 130px of a card that is
+                  already tall from a 3:4 render; side by side the swatches share one line and it
+                  is about 75px. Equal columns rather than auto so the three cells line up across
+                  every card in the grid, whether or not a look wears eyeshadow. */}
+              <div className="grid grid-cols-3 gap-x-3">
+                <SwatchCell label="Lip" color={rendered.look.lipColor} />
+                <SwatchCell label="Blush" color={rendered.look.blushColor} />
                 {rendered.look.palette.shadowAccent && (
-                  <SwatchRow label="Eye" color={rendered.look.palette.shadowAccent} />
+                  <SwatchCell label="Eye" color={rendered.look.palette.shadowAccent} />
                 )}
               </div>
             </div>

@@ -1,4 +1,5 @@
 import Swatch, { HexLabel } from "./ui/Swatch";
+import { nameShade, nameShadeTitle } from "../lib/colorEngine/shadeName";
 import type { FilledLook } from "../lib/colorEngine/template";
 
 interface PlacementProofProps {
@@ -102,13 +103,22 @@ export default function PlacementProof({
   );
 }
 
+/**
+ * The name carries this section, not the hex.
+ *
+ * On the deepest colouring the conventional placement names as "black" and the adapted one as
+ * "vivid raspberry". That is the whole argument in two words, where #050403 against #a7075d is
+ * twelve characters that only a developer reads as a difference. The hex stays underneath because
+ * this is a section about a measurement and dropping it would weaken the claim, not strengthen it.
+ */
 function Placed({ label, hex }: { label: string; hex: string }) {
   return (
     <div className="flex items-center gap-3">
       <Swatch color={hex} size="lg" />
-      <div>
+      <div className="min-w-0">
         <p className="font-label text-xs uppercase tracking-widest text-muted">{label}</p>
-        <HexLabel value={hex} />
+        <p className="font-body text-sm font-medium text-foreground">{nameShadeTitle(hex)}</p>
+        <HexLabel value={hex} className="text-xs text-muted" />
       </div>
     </div>
   );
@@ -119,7 +129,9 @@ function Rendered({ label, src, hex }: { label: string; src: string; hex: string
     <figure className="flex flex-col gap-2">
       <img
         src={src}
-        alt={`The same look with the lip at ${hex}`}
+        // Named rather than given as a hex, so the two images are distinguishable to a screen
+        // reader. "The same look with the lip at #050403" describes nothing anyone can picture.
+        alt={`The same look with a ${nameShade(hex)} lip`}
         className="w-full rounded-lg border border-border bg-background object-cover"
       />
       <figcaption className="font-label text-xs uppercase tracking-widest text-muted">
