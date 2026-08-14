@@ -12,6 +12,7 @@ import { nameShade } from "../shadeName";
 import { deltaE, hexToOklch } from "../oklch";
 import { selectLooks } from "../template";
 import { ANALYSIS_FIXTURES } from "../../fixtures/analysisFixtures";
+import type { GarmentInfluence } from "../../garment/influence";
 
 // Declared locally rather than pulling @types/node into the app's typecheck, matching the other
 // suites here. These run under tsx; the app itself never sees them.
@@ -64,6 +65,23 @@ for (const fx of ANALYSIS_FIXTURES) {
     }
   }
 
+  // 1b. The pair that matters most, and the one the check above does not reach: a look's
+  //     conventional placement against its adapted one. PlacementProof exists to show these two
+  //     differ, so giving them the same name contradicts the section they appear in. Comparing
+  //     only lip-against-lip across looks missed it, and #2c0d05 and #5a2316 shipped to the screen
+  //     as "Mahogany" and "Mahogany" while sitting dE 0.129 apart.
+  for (const look of looks) {
+    if (look.conventionalLip === look.lipColor) continue;
+    const distance = deltaE(look.conventionalLip, look.lipColor);
+    if (distance > SAME_NAME_LIMIT && nameShade(look.conventionalLip) === nameShade(look.lipColor)) {
+      fail(
+        `${fx.id}/${look.label}: the placement proof shows ${look.conventionalLip} and ` +
+          `${look.lipColor} side by side, dE ${distance.toFixed(3)} apart, both named ` +
+          `"${nameShade(look.lipColor)}"`,
+      );
+    }
+  }
+
   // 2. The converse, which is the failure a distinctness test alone would reward: without it,
   //    "make every name unique" would be a passing strategy.
   //
@@ -109,7 +127,43 @@ for (const fx of ANALYSIS_FIXTURES) {
   }
 }
 
-// 5. A colour with no usable hue must be named from lightness, not given a hue family. A brow at
+// 5. Everything above again, with an outfit in play.
+//
+//    This exists because the suite without it was passing while a real bug shipped. An outfit
+//    moves the eye accent and pulls the lip, so it reaches colours no bare run produces, and
+//    #4a0013 and #84002c both named "vivid oxblood" at dE 0.141 in the placement proof. Naming
+//    was only ever tested on looks derived without a garment, which is not how the app is used.
+const INFLUENCES: Array<{ label: string; influence?: GarmentInfluence }> = [
+  { label: "loud cobalt", influence: { loudness: 1, hue: 258, neutral: false, anchor: null } },
+  { label: "muted clay", influence: { loudness: 0.45, hue: 38, neutral: false, anchor: null } },
+  { label: "all neutrals", influence: { loudness: 0, hue: null, neutral: true, anchor: null } },
+  { label: "loud green", influence: { loudness: 0.9, hue: 145, neutral: false, anchor: null } },
+];
+
+for (const fx of ANALYSIS_FIXTURES) {
+  for (const { label, influence } of INFLUENCES) {
+    for (const look of selectLooks(fx.colors, fx.fitzpatrick, 5, influence)) {
+      for (const hex of Object.values(look.palette)) {
+        const name = nameShade(hex);
+        if (!name.trim()) fail(`${fx.id} wearing ${label}: ${hex} produced an empty name`);
+        if (name.trim().split(/\s+/).length > 2) {
+          fail(`${fx.id} wearing ${label}: ${hex} named "${name}", which is more than two words`);
+        }
+      }
+
+      if (look.conventionalLip === look.lipColor) continue;
+      const distance = deltaE(look.conventionalLip, look.lipColor);
+      if (distance > SAME_NAME_LIMIT && nameShade(look.conventionalLip) === nameShade(look.lipColor)) {
+        fail(
+          `${fx.id} wearing ${label}, ${look.label}: proof shows ${look.conventionalLip} and ` +
+            `${look.lipColor}, dE ${distance.toFixed(3)} apart, both "${nameShade(look.lipColor)}"`,
+        );
+      }
+    }
+  }
+}
+
+// 6. A colour with no usable hue must be named from lightness, not given a hue family. A brow at
 //    near-zero chroma called "raspberry" because its hue rounded there would be worse than a hex.
 for (const [hex, expected] of [
   ["#000000", "black"],

@@ -144,6 +144,39 @@ function modifier(chroma: number, lightness: number): string {
 }
 
 /**
+ * The modifier for a noun that already carries its own depth, such as "mahogany" or "peach".
+ *
+ * Same shape as `modifier`, except the lightness question is asked inside the variant's band
+ * instead of across the whole scale. Below the midpoint of the deep band a shade is a deep one of
+ * those; above the midpoint of the pale band, a pale one.
+ */
+function carriedModifier(chroma: number, lightness: number): string {
+  const ratio = saturationRatio(chroma, lightness);
+
+  const [satWord, satBy] =
+    ratio > VIVID_ABOVE
+      ? ["vivid", (ratio - VIVID_ABOVE) / (1 - VIVID_ABOVE)]
+      : ratio < SOFT_BELOW
+        ? ["soft", (SOFT_BELOW - ratio) / SOFT_BELOW]
+        : ["", 0];
+
+  // Not the arithmetic midpoint of the band. Halfway down (0.225) sat below almost every deep
+  // shade the engine produces, so the depth word never won against saturation and #4a0013 and
+  // #84002c both came back "vivid oxblood" at dE 0.141 despite 0.13 of lightness between them.
+  // Placed where the deep shades actually sit instead.
+  const deepMid = DEEP_BELOW * 0.7;
+  const paleMid = PALE_ABOVE + (1 - PALE_ABOVE) * 0.3;
+  const [lightWord, lightBy] =
+    lightness < deepMid
+      ? ["deep", (deepMid - lightness) / deepMid]
+      : lightness > paleMid
+        ? ["pale", (lightness - paleMid) / (1 - paleMid)]
+        : ["", 0];
+
+  return (lightBy > satBy ? lightWord : satWord) as string;
+}
+
+/**
  * A short, sayable name for a measured colour, e.g. "soft terracotta" or "deep berry".
  *
  * Deliberately at most two words. Three-word names read as marketing copy and stop carrying
@@ -161,15 +194,16 @@ export function nameShade(hex: string): string {
   const base = FAMILIES.find((f) => (((h % 360) + 360) % 360) < f.upTo);
   const carried = noun !== base?.name;
 
-  // A noun that already carries the depth ("mahogany" is deep by definition) must not take a
-  // depth word on top, or we get "deep mahogany". Saturation still applies to it.
-  const word = carried
-    ? saturationRatio(c, l) > VIVID_ABOVE
-      ? "vivid"
-      : saturationRatio(c, l) < SOFT_BELOW
-        ? "soft"
-        : ""
-    : modifier(c, l);
+  // A noun that already carries the depth cannot take the global depth word on top, or every
+  // shade under lightness 0.45 becomes "deep mahogany". But suppressing it entirely was worse:
+  // that band is where every deep-skin lip lives, so the whole range collapsed onto one word and
+  // #2c0d05 and #5a2316 both came back "mahogany" while sitting dE 0.129 apart. Those two are the
+  // conventional and adapted placement of the same lip, which is the one pair in the product that
+  // has to read differently.
+  //
+  // So the depth word is re-judged inside the variant's own band rather than against the whole
+  // scale: a mahogany in the darkest part of the mahogany range is a deep mahogany.
+  const word = carried ? carriedModifier(c, l) : modifier(c, l);
   return word ? `${word} ${noun}` : noun;
 }
 
