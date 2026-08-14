@@ -3,6 +3,8 @@ import Swatch from "../components/ui/Swatch";
 import ColouringSummary from "../components/ColouringSummary";
 import ShadeSheet from "../components/ShadeSheet";
 import PlacementProof from "../components/PlacementProof";
+import FoundationMatch from "../components/FoundationMatch";
+import { foundationGuide } from "../lib/colorEngine/foundation";
 import { TEMPLATE_COUNT, type FilledLook } from "../lib/colorEngine/template";
 import { nameShadeTitle } from "../lib/colorEngine/shadeName";
 import type { ColourProfile } from "../lib/colorEngine/season";
@@ -29,6 +31,11 @@ interface LooksScreenProps {
   onCompare: (look: FilledLook) => void;
   comparisonUrl: string | null;
   comparing: boolean;
+  /** Her own photo, for the foundation comparison's bare side. */
+  sourceUrl: string | null;
+  foundationRenders: Record<string, string>;
+  foundationBusy: string | null;
+  onRenderFoundation: (shadeId: string, hex: string) => void;
 }
 
 /**
@@ -70,6 +77,10 @@ export default function LooksScreen({
   onCompare,
   comparisonUrl,
   comparing,
+  sourceUrl,
+  foundationRenders,
+  foundationBusy,
+  onRenderFoundation,
 }: LooksScreenProps) {
   // Tapping a look opens its shades. It used to open the live camera view, which has been
   // removed: a half-working AR filter was the weakest thing in the product and invited comparison
@@ -157,6 +168,18 @@ export default function LooksScreen({
           onRender={() => onCompare(boldest.look)}
         />
       )}
+
+      {/* After the placement proof, because that section argues the engine is right and this one
+          is her acting on it. Foundation is also the one thing here she cannot see on the looks,
+          since it is deliberately never rendered onto them. */}
+      <FoundationMatch
+        skinHex={colors.skin_color}
+        guide={foundationGuide(profile, colors.skin_color)}
+        sourceUrl={sourceUrl}
+        renders={foundationRenders}
+        busyId={foundationBusy}
+        onRender={onRenderFoundation}
+      />
 
       {/* Placed after the looks, quiet, and named for its consequence — it is destructive and
           requires retaking the photo. Never the first thing a thumb finds. */}

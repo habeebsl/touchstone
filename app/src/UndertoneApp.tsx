@@ -104,6 +104,13 @@ export default function UndertoneApp() {
   // result, and it is one unit to produce again.
   const [comparisonUrl, setComparisonUrl] = useState<string | null>(null);
   const [comparing, setComparing] = useState(false);
+
+  // Her photo as the browser can display it, for the "before" side of the foundation wipe. Held
+  // rather than persisted: for a capture it is an object URL, which does not survive a reload, and
+  // the section degrades to hiding its buttons rather than showing a broken image.
+  const [sourceUrl, setSourceUrl] = useState<string | null>(null);
+  const [foundationRenders, setFoundationRenders] = useState<Record<string, string>>({});
+  const [foundationBusy, setFoundationBusy] = useState<string | null>(null);
   const [stepsDone, setStepsDone] = useState(0);
   const [status, setStatus] = useState("Uploading your photo");
   const [error, setError] = useState<string | null>(null);
@@ -134,6 +141,9 @@ export default function UndertoneApp() {
     setGarmentSwatches(null);
     setGarmentPreview(null);
     setGarmentError(null);
+    setSourceUrl(null);
+    setFoundationRenders({});
+    setFoundationBusy(null);
   }, []);
 
   const handleCapture = useCallback(
@@ -145,6 +155,10 @@ export default function UndertoneApp() {
       const advance = () => setStepsDone((n) => n + 1);
 
       try {
+        // Kept for the foundation comparison's "before" side, which needs her photo as an image
+        // rather than as the file id the API works in.
+        setSourceUrl(URL.createObjectURL(file));
+
         const uploadedFileId = await client.uploadFile(file);
         advance();
         setStatus("Measuring your colouring");
@@ -270,6 +284,42 @@ export default function UndertoneApp() {
       }
     },
     [fileId],
+  );
+
+  /**
+   * Render one foundation shade onto her own photo, for the before/after wipe.
+   *
+   * `skin_smooth` is pinned to zero, and that is the whole reason this function exists rather than
+   * reusing the look renderer. The API applies it at strength 50 when omitted, so the "after" side
+   * would come back airbrushed as well as tinted: she would read it as better because the pores
+   * had gone, and we would be demonstrating a beauty filter while claiming to demonstrate shade
+   * matching. Foundation alone, at full coverage and no glow, so the only variable is the colour.
+   */
+  const renderFoundation = useCallback(
+    async (shadeId: string, hex: string) => {
+      if (!fileId) return;
+      setFoundationBusy(shadeId);
+      try {
+        const result = await client.runMakeupVto({
+          src_file_id: fileId,
+          version: "1.0",
+          effects: [
+            { category: "skin_smooth", skinSmoothStrength: 0, skinSmoothColorIntensity: 0 },
+            {
+              category: "foundation",
+              palettes: [{ color: hex, colorIntensity: 100, glowIntensity: 0, coverageIntensity: 100 }],
+            },
+          ],
+        });
+        setFoundationRenders((current) => ({ ...current, [shadeId]: result.url }));
+      } catch (err) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setFoundationBusy(null);
+      }
+    },
+    [client, fileId],
   );
 
   const renderLooks = useCallback(
@@ -426,6 +476,10 @@ export default function UndertoneApp() {
           onCompare={(look) => void renderConventional(look)}
           comparisonUrl={comparisonUrl}
           comparing={comparing}
+          sourceUrl={sourceUrl}
+          foundationRenders={foundationRenders}
+          foundationBusy={foundationBusy}
+          onRenderFoundation={(shadeId, hex) => void renderFoundation(shadeId, hex)}
           onImageExpired={() => {
             clearSession();
             setError("Your looks have expired. Renders are only kept for a couple of hours.");
