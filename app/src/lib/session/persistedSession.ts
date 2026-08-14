@@ -1,11 +1,12 @@
 import type { FilledLook } from "../colorEngine/template";
+import type { GarmentSwatch } from "../garment/palette";
 import type { ColourProfile } from "../colorEngine/season";
 import type { FacialColorTonesResult, FitzpatrickScale } from "../youcam/types";
 
 // Bumped whenever the stored shape changes. A session written by an older build restored
 // *partially* once — its profile cited a Fitzpatrick type that the session itself no longer
 // carried — and a stale entry that half-works is worse than none.
-const KEY = "undertone.session.v2";
+const KEY = "undertone.session.v3";
 
 /**
  * Makeup VTO returns pre-signed URLs that expire after 2 hours. Expire our cache well before
@@ -20,6 +21,14 @@ export interface PersistedSession {
   profile: ColourProfile;
   /** Kept so a restored session does not claim the depth was estimated without it. */
   fitzpatrick: FitzpatrickScale | null;
+  /**
+   * The outfit her looks were built around, so a restore can derive the same set.
+   *
+   * Previously dropped, which meant a reload silently rebuilt an outfit-influenced session as if
+   * she had skipped the question. Template selection depends on it, so without it the looks that
+   * come back are not the looks that were paid for.
+   */
+  garment: GarmentSwatch[] | null;
   looks: Array<{ look: FilledLook; imageUrl: string }>;
   selectedTemplateId: string | null;
 }

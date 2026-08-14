@@ -13,7 +13,7 @@ import { garmentPaletteFromImage, type GarmentSwatch } from "./lib/garment/palet
 import { garmentInfluence } from "./lib/garment/influence";
 import { getFixture, rememberAnalysis, type AnalysisFixture } from "./lib/fixtures/analysisFixtures";
 import { sampleAsFile, type SampleOutfit, type SampleSubject } from "./lib/samples/sampleSubjects";
-import { clearSession, loadSession, saveSession } from "./lib/session/persistedSession";
+import { clearSession, loadSession, saveSession, type PersistedSession } from "./lib/session/persistedSession";
 import type { FacialColorTonesResult, FitzpatrickScale } from "./lib/youcam/types";
 
 
@@ -45,9 +45,48 @@ const LOOKS_SHOWN = 5;
 const ANALYSIS_STEPS = 3;
 const RENDER_STEPS = LOOKS_SHOWN;
 
+/**
+ * Rebuild a restored session's looks from its stored inputs.
+ *
+ * A session stores whole FilledLooks, so before this it replayed whatever the build that wrote it
+ * had computed: change the engine, reload, and the screen shows the old text and the old colours
+ * with no indication anything is stale. That is invisible in a way a crash never is, and it cost
+ * an afternoon of "the fix didn't work" when the fix had worked.
+ *
+ * So only the renders survive a reload, because a render is the one thing that cannot be
+ * recomputed. Everything else is derived again from her measurements and her outfit.
+ *
+ * Returns null when the freshly selected templates no longer match what was rendered. That means
+ * selection itself changed, so the images on file are of looks we would no longer offer, and
+ * showing them under new labels would be worse than starting over.
+ */
+function rehydrate(session: PersistedSession): RenderedLook[] | null {
+  const { colors } = normaliseMeasured(session.colors);
+  const influence = session.garment?.length ? garmentInfluence(session.garment) : undefined;
+  const fresh = selectLooks(colors, session.fitzpatrick, session.looks.length, influence);
+
+  const renders = new Map(session.looks.map((entry) => [entry.look.templateId, entry.imageUrl]));
+  const rebuilt: RenderedLook[] = [];
+  for (const look of fresh) {
+    const imageUrl = renders.get(look.templateId);
+    if (!imageUrl) return null;
+    rebuilt.push({ look, imageUrl });
+  }
+  return rebuilt;
+}
+
 export default function UndertoneApp() {
   // Restore a completed analysis if this tab reloaded — see lib/session/persistedSession.ts.
-  const restored = useState(() => loadSession())[0];
+  const restored = useState(() => {
+    const session = loadSession();
+    if (!session) return null;
+    const looks = rehydrate(session);
+    if (!looks) {
+      clearSession();
+      return null;
+    }
+    return { ...session, looks };
+  })[0];
 
   const [stage, setStage] = useState<Stage>(restored ? "looks" : "intro");
   // Two views of the same thing, deliberately. `colors` is what has arrived so far and may be
@@ -73,7 +112,7 @@ export default function UndertoneApp() {
   // because a reload should not silently drop the outfit a look was built around.
   const [fileId, setFileId] = useState<string | null>(restored?.fileId ?? null);
   const [fitzpatrick, setFitzpatrick] = useState<FitzpatrickScale | null>(restored?.fitzpatrick ?? null);
-  const [garmentSwatches, setGarmentSwatches] = useState<GarmentSwatch[] | null>(null);
+  const [garmentSwatches, setGarmentSwatches] = useState<GarmentSwatch[] | null>(restored?.garment ?? null);
   const [garmentPreview, setGarmentPreview] = useState<string | null>(null);
   const [garmentBusy, setGarmentBusy] = useState(false);
   const [garmentError, setGarmentError] = useState<string | null>(null);
@@ -263,7 +302,17 @@ export default function UndertoneApp() {
         // Only a finished run is worth persisting: it cost 35 API units, and an in-flight one has
         // pending promises that could not be resumed anyway.
         if (profile) {
-          saveSession({ fileId, colors: measured, profile, fitzpatrick, looks: rendered, selectedTemplateId: null });
+          saveSession({
+            fileId,
+            colors: measured,
+            profile,
+            fitzpatrick,
+            // The outfit these were selected for, so a reload derives the same five rather than
+            // the five she would have been offered with no outfit at all.
+            garment: garment ?? null,
+            looks: rendered,
+            selectedTemplateId: null,
+          });
         }
       } catch (err) {
         console.error(err);
