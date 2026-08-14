@@ -57,11 +57,17 @@ export default function FoundationMatch({
       <p className="font-body max-w-2xl text-sm leading-relaxed text-foreground">
         We put you at <span className="font-medium">{guide.depth.toLowerCase()}</span> depth with a{" "}
         <span className="font-medium">{guide.undertone.toLowerCase()}</span> undertone. These are
-        the three shades around that reading worth testing, not one shade to buy.
+        three shades around that reading, and all three hold that same undertone. Only the depth
+        moves.
       </p>
+      {/* The undertone being held is the instruction, not a detail of the implementation: it is
+          the axis foundation is most often got wrong on, and it is what she should hold fixed
+          while trying shades. Saying only "here are three shades" leaves her free to wander off
+          it, which is the mistake this section exists to prevent. */}
       <p className="font-body mt-2 max-w-2xl text-sm leading-relaxed text-muted">
-        A correct foundation disappears into your skin. Try each one and look for the one that
-        stops being visible.
+        A correct foundation disappears into your skin, so try each and look for the one that stops
+        being visible. Shade codes do not carry between brands, so ask for a depth and an undertone
+        rather than a number you saw somewhere else.
       </p>
 
       {/* One at a time, picked from a row of three. Rendering all three at once cost about 1500px
