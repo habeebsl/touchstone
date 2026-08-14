@@ -11,7 +11,8 @@ import { analyseColouring, type ColourProfile } from "./lib/colorEngine/season";
 import { normaliseMeasured, type NormalisedColors } from "./lib/colorEngine/normalise";
 import { garmentPaletteFromImage, type GarmentSwatch } from "./lib/garment/palette";
 import { garmentInfluence } from "./lib/garment/influence";
-import { getFixture, rememberAnalysis } from "./lib/fixtures/analysisFixtures";
+import { getFixture, rememberAnalysis, type AnalysisFixture } from "./lib/fixtures/analysisFixtures";
+import { sampleAsFile, type SampleOutfit, type SampleSubject } from "./lib/samples/sampleSubjects";
 import { clearSession, loadSession, saveSession } from "./lib/session/persistedSession";
 import type { FacialColorTonesResult, FitzpatrickScale } from "./lib/youcam/types";
 
@@ -97,7 +98,9 @@ export default function UndertoneApp() {
   }, []);
 
   const handleCapture = useCallback(
-    async (file: File) => {
+    // `replay` lets a sample subject supply its own stored analysis. Defaulting to the URL
+    // param keeps the camera path behaving exactly as before.
+    async (file: File, replay: AnalysisFixture | null = FIXTURE) => {
       setStage("analysing");
       setError(null);
       const advance = () => setStepsDone((n) => n + 1);
@@ -110,11 +113,11 @@ export default function UndertoneApp() {
         let raw: FacialColorTonesResult["color"];
         let fitzpatrick: FitzpatrickScale | null;
 
-        if (FIXTURE) {
+        if (replay) {
           // Replay a stored analysis: identical output for the same face, at 0 units instead of
           // 30. Rendering below still runs for real.
-          raw = FIXTURE.colors;
-          fitzpatrick = FIXTURE.fitzpatrick;
+          raw = replay.colors;
+          fitzpatrick = replay.fitzpatrick;
           advance();
           advance();
         } else {
@@ -150,7 +153,7 @@ export default function UndertoneApp() {
         setMeasured(normalised);
 
         // Remember it so `?fixture=mine` can replay this exact analysis for free.
-        if (!FIXTURE && fitzpatrick) rememberAnalysis(normalised, fitzpatrick);
+        if (!replay && fitzpatrick) rememberAnalysis(normalised, fitzpatrick);
 
         const derived = analyseColouring(normalised, fitzpatrick);
         setProfile(derived);
@@ -167,6 +170,30 @@ export default function UndertoneApp() {
       }
     },
     [client],
+  );
+
+  /**
+   * Run a sample subject through the ordinary capture path.
+   *
+   * The image is fetched and handed over as a File, so upload, analysis and rendering are the
+   * same code the camera reaches. Where a subject has a stored analysis its 30 units are replayed
+   * rather than spent; the renders always run for real, so what a judge sees is genuinely what
+   * the API produced for that face.
+   */
+  const handleSample = useCallback(
+    async (subject: SampleSubject) => {
+      setStage("analysing");
+      setStatus("Loading the photo");
+      setError(null);
+      try {
+        const file = await sampleAsFile(subject);
+        await handleCapture(file, subject.fixtureId ? getFixture(subject.fixtureId) : null);
+      } catch (err) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [handleCapture],
   );
 
   /**
@@ -278,6 +305,28 @@ export default function UndertoneApp() {
     [client, measured],
   );
 
+  /**
+   * One of the garments we ship, run through the ordinary outfit path.
+   *
+   * Fetched here rather than in the screen so a failed fetch lands in the same recoverable error
+   * state as a failed upload, and the screen keeps one way of reporting trouble instead of two.
+   */
+  const handleSampleOutfit = useCallback(
+    async (outfit: SampleOutfit) => {
+      setGarmentBusy(true);
+      setGarmentError(null);
+      try {
+        await handleOutfitPhoto(await sampleAsFile(outfit));
+      } catch (err) {
+        console.error(err);
+        setGarmentError("We couldn't load that outfit. Try another, or skip this step.");
+      } finally {
+        setGarmentBusy(false);
+      }
+    },
+    [handleOutfitPhoto],
+  );
+
   const camera = useCameraKit({ onCapture: handleCapture });
 
   // The analysing screen is shown for both passes; only the render pass has a file id in hand.
@@ -296,7 +345,11 @@ export default function UndertoneApp() {
       {fatal ? (
         <ErrorState message={fatal} onRetry={reset} />
       ) : stage === "intro" ? (
-        <IntroScreen onStart={camera.open} disabled={!camera.ready} />
+        <IntroScreen
+          onStart={camera.open}
+          onSample={(subject) => void handleSample(subject)}
+          disabled={!camera.ready}
+        />
       ) : stage === "analysing" ? (
         <AnalysingScreen
           colors={colors}
@@ -307,6 +360,7 @@ export default function UndertoneApp() {
       ) : stage === "outfit" ? (
         <OutfitScreen
           onPhoto={handleOutfitPhoto}
+          onSampleOutfit={(outfit) => void handleSampleOutfit(outfit)}
           swatches={garmentSwatches}
           previewUrl={garmentPreview}
           busy={garmentBusy}
