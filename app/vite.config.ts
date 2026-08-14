@@ -51,7 +51,7 @@ function mediapipeWasm(): Plugin {
 }
 
 /**
- * The dev-server twin of api/youcam/[...path].ts.
+ * The dev-server twin of api/youcam.ts.
  *
  * Without this, `npm run dev` has no /api routes and the app can only work against a deployed
  * function — so the credential would have to go back into the bundle to develop against, which is
