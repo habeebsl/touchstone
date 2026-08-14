@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Swatch, { HexLabel } from "./ui/Swatch";
 import BeforeAfter from "./ui/BeforeAfter";
 import { foundationShades } from "../lib/colorEngine/foundationShades";
@@ -41,6 +42,11 @@ export default function FoundationMatch({
   onRender,
 }: FoundationMatchProps) {
   const shades = foundationShades(skinHex);
+  // Her own measurement is the one worth looking at first; the other two exist to be compared
+  // against it, not to be considered on equal footing.
+  const [selectedId, setSelectedId] = useState("match");
+  const selected = shades.find((s) => s.id === selectedId) ?? shades[1];
+  const selectedRender = renders[selected.id];
 
   return (
     <section className="mt-10 rounded-lg border border-border bg-surface px-5 py-4 md:px-8 md:py-7">
@@ -58,44 +64,65 @@ export default function FoundationMatch({
         stops being visible.
       </p>
 
-      <ul className="mt-5 flex flex-col gap-5">
+      {/* One at a time, picked from a row of three. Rendering all three at once cost about 1500px
+          of stacked faces to show two comparisons nobody was looking at: a wipe can only be
+          dragged one at a time, so the other two were height without a reader. Switching back is
+          free, since a rendered shade is kept. */}
+      <div className="mt-5 flex flex-wrap gap-2" role="tablist" aria-label="Foundation shades to try">
         {shades.map((shade) => {
-          const rendered = renders[shade.id];
+          const on = shade.id === selected.id;
           return (
-            <li key={shade.id} className="flex flex-col gap-3 border-t border-border pt-5 first:border-t-0 first:pt-0">
-              <div className="flex items-center gap-3">
-                <Swatch color={shade.hex} size="lg" />
-                <div className="min-w-0 flex-1">
-                  <p className="font-body text-sm font-medium text-foreground">{shade.label}</p>
-                  <p className="font-body text-xs leading-relaxed text-muted">{shade.note}</p>
-                </div>
-                <HexLabel value={shade.hex.toUpperCase()} className="shrink-0 text-xs text-muted" />
-              </div>
-
-              {rendered && sourceUrl ? (
-                <div className="max-w-sm">
-                  <BeforeAfter
-                    beforeUrl={sourceUrl}
-                    afterUrl={rendered}
-                    beforeLabel="Bare"
-                    afterLabel={shade.label}
-                    description={`Compare your bare skin with ${shade.label.toLowerCase()}, ${shade.hex}`}
-                  />
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => onRender(shade.id, shade.hex)}
-                  disabled={busyId !== null || !sourceUrl}
-                  className="font-label transition-interactive w-fit rounded-lg border border-border px-4 py-2 text-xs uppercase tracking-widest text-foreground hover:bg-background focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {busyId === shade.id ? "Rendering…" : "Try this one"}
-                </button>
+            <button
+              key={shade.id}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              onClick={() => setSelectedId(shade.id)}
+              className={`transition-interactive flex items-center gap-2 rounded-lg border px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
+                on ? "border-foreground bg-background" : "border-border hover:bg-background"
+              }`}
+            >
+              <Swatch color={shade.hex} size="sm" />
+              <span className="font-body text-xs text-foreground">{shade.label}</span>
+              {renders[shade.id] && (
+                <span aria-hidden="true" className="font-label text-xs text-muted">
+                  ✓
+                </span>
               )}
-            </li>
+            </button>
           );
         })}
-      </ul>
+      </div>
+
+      <div className="mt-4 flex flex-col gap-3">
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="font-body text-sm leading-relaxed text-muted">{selected.note}</p>
+          </div>
+          <HexLabel value={selected.hex.toUpperCase()} className="shrink-0 text-xs text-muted" />
+        </div>
+
+        {selectedRender && sourceUrl ? (
+          <div className="max-w-sm">
+            <BeforeAfter
+              beforeUrl={sourceUrl}
+              afterUrl={selectedRender}
+              beforeLabel="Bare"
+              afterLabel={selected.label}
+              description={`Compare your bare skin with ${selected.label.toLowerCase()}, ${selected.hex}`}
+            />
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onRender(selected.id, selected.hex)}
+            disabled={busyId !== null || !sourceUrl}
+            className="font-label transition-interactive w-fit rounded-lg border border-border px-4 py-2 text-xs uppercase tracking-widest text-foreground hover:bg-background focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {busyId === selected.id ? "Rendering…" : "Try this one on my face"}
+          </button>
+        )}
+      </div>
 
       {/* The limitation, stated as the instruction it implies. Next to one shade this would read
           as "here is your match, but do not trust it"; next to three it is just correct advice. */}
