@@ -6,7 +6,7 @@ import type { FacialColorTonesResult, FitzpatrickScale } from "../youcam/types";
 // Bumped whenever the stored shape changes. A session written by an older build restored
 // *partially* once — its profile cited a Fitzpatrick type that the session itself no longer
 // carried — and a stale entry that half-works is worse than none.
-const KEY = "undertone.session.v3";
+const KEY = "undertone.session.v4";
 
 /**
  * Makeup VTO returns pre-signed URLs that expire after 2 hours. Expire our cache well before
@@ -29,6 +29,13 @@ export interface PersistedSession {
    * come back are not the looks that were paid for.
    */
   garment: GarmentSwatch[] | null;
+  /**
+   * A downscaled copy of her photo, for the foundation comparison's bare side.
+   *
+   * The live version is an object URL, which does not survive a reload. Null when the downscale
+   * failed, which the comparison handles by saying so rather than by offering a dead button.
+   */
+  sourceImage: string | null;
   looks: Array<{ look: FilledLook; imageUrl: string }>;
   selectedTemplateId: string | null;
 }

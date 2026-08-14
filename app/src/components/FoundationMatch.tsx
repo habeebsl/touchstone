@@ -112,15 +112,23 @@ export default function FoundationMatch({
               description={`Compare your bare skin with ${selected.label.toLowerCase()}, ${selected.hex}`}
             />
           </div>
-        ) : (
+        ) : sourceUrl ? (
           <button
             type="button"
             onClick={() => onRender(selected.id, selected.hex)}
-            disabled={busyId !== null || !sourceUrl}
+            disabled={busyId !== null}
             className="font-label transition-interactive w-fit rounded-lg border border-border px-4 py-2 text-xs uppercase tracking-widest text-foreground hover:bg-background focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busyId === selected.id ? "Rendering…" : "Try this one on my face"}
           </button>
+        ) : (
+          // Rather than a button that greys out for a reason nobody can see. Without her bare
+          // photo there is no "before" side, so the comparison cannot be built at all, and saying
+          // that is more use than a dead control.
+          <p className="font-body text-xs leading-relaxed text-muted">
+            We no longer have your original photo to compare against. Start over to try shades on
+            your own face; the shades above are still yours.
+          </p>
         )}
       </div>
 

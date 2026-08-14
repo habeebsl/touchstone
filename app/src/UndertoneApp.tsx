@@ -14,6 +14,7 @@ import { garmentInfluence } from "./lib/garment/influence";
 import { getFixture, rememberAnalysis, type AnalysisFixture } from "./lib/fixtures/analysisFixtures";
 import { sampleAsFile, type SampleOutfit, type SampleSubject } from "./lib/samples/sampleSubjects";
 import { clearSession, loadSession, saveSession, type PersistedSession } from "./lib/session/persistedSession";
+import { toStoredImage } from "./lib/session/sourceImage";
 import type { FacialColorTonesResult, FitzpatrickScale } from "./lib/youcam/types";
 
 
@@ -108,7 +109,10 @@ export default function UndertoneApp() {
   // Her photo as the browser can display it, for the "before" side of the foundation wipe. Held
   // rather than persisted: for a capture it is an object URL, which does not survive a reload, and
   // the section degrades to hiding its buttons rather than showing a broken image.
-  const [sourceUrl, setSourceUrl] = useState<string | null>(null);
+  const [sourceUrl, setSourceUrl] = useState<string | null>(restored?.sourceImage ?? null);
+  // The same photo as a data URL, held so a finished run can persist it. Computed once during
+  // the analysis rather than at save time, where it would add latency to the render pass.
+  const [sourceImage, setSourceImage] = useState<string | null>(restored?.sourceImage ?? null);
   const [foundationRenders, setFoundationRenders] = useState<Record<string, string>>({});
   const [foundationBusy, setFoundationBusy] = useState<string | null>(null);
   const [stepsDone, setStepsDone] = useState(0);
@@ -142,6 +146,7 @@ export default function UndertoneApp() {
     setGarmentPreview(null);
     setGarmentError(null);
     setSourceUrl(null);
+    setSourceImage(null);
     setFoundationRenders({});
     setFoundationBusy(null);
   }, []);
@@ -158,6 +163,9 @@ export default function UndertoneApp() {
         // Kept for the foundation comparison's "before" side, which needs her photo as an image
         // rather than as the file id the API works in.
         setSourceUrl(URL.createObjectURL(file));
+        // Not awaited: the object URL above is already on screen, and this only has to be ready
+        // by the time a finished run is saved.
+        void toStoredImage(file).then(setSourceImage);
 
         const uploadedFileId = await client.uploadFile(file);
         advance();
@@ -360,6 +368,7 @@ export default function UndertoneApp() {
             // The outfit these were selected for, so a reload derives the same five rather than
             // the five she would have been offered with no outfit at all.
             garment: garment ?? null,
+            sourceImage,
             looks: rendered,
             selectedTemplateId: null,
           });
