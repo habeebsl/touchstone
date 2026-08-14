@@ -103,6 +103,22 @@ if (quietIds.join() === loudIds.join()) {
   console.log(`red dress    -> ${withLoud.map((l) => l.label).join(", ")}  (loudness ${loud.loudness.toFixed(2)})`);
   console.log(`all black    -> ${withQuiet.map((l) => l.label).join(", ")}`);
 
+  // 0. Every look must give a different reason for being there.
+  //
+  //    The reason used to come from the person and the outfit, both constant across a set, so all
+  //    five cards carried the same sentence: "The eye picks up your outfit." five times under five
+  //    different faces. Five looks each explaining themselves identically explain nothing, and in
+  //    a desktop grid, where all five are in the eye at once, it reads as a template with a
+  //    variable in it rather than as analysis.
+  for (const [label, set] of [["no outfit", bare], ["red dress", withLoud], ["all black", withQuiet]] as const) {
+    // The second sentence only. The first describes the look and is expected to differ anyway.
+    const fits = set.map((l) => l.why.split(". ").slice(1).join(". "));
+    const repeated = fits.filter((f, i) => fits.indexOf(f) !== i);
+    if (repeated.length) {
+      fail(`${fx.id} wearing ${label}: ${repeated.length} looks repeat a reason ("${repeated[0]}")`);
+    }
+  }
+
   // 1. A loud outfit must pull the offered looks quieter than a neutral one does.
   const meanIntensity = (looks: typeof bare) =>
     looks.filter((l) => l.register === "bold").length + looks.filter((l) => l.register === "polished").length * 0.5;

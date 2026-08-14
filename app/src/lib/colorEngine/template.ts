@@ -710,39 +710,95 @@ function selectTemplates(profile: ColourProfile, count: number, garment?: Garmen
   return chosen.slice(0, count).sort((a, b) => a.intensity - b.intensity);
 }
 
-function explain(spec: LookTemplate, profile: ColourProfile, garment?: GarmentInfluence): string {
+/** Small numbers read as words in a sentence. "The quietest of the 5" looks like a spreadsheet. */
+function spell(n: number): string {
+  return ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"][n] ?? String(n);
+}
+
+/**
+ * The "why" line under each look, for a whole set at once.
+ *
+ * Computed for the set rather than per look because the property that matters, that no two cards
+ * say the same thing, is not one a single card can check. The previous version derived the reason
+ * from the person and the outfit, both of which are constant across the five, so every card
+ * carried the same sentence: five looks each explaining themselves identically explain nothing,
+ * and on a phone that reads as house style while in a desktop grid it reads as a template with a
+ * variable in it.
+ *
+ * Each look proposes reasons in descending order of how much it says, and takes the best one
+ * nobody above it has taken. Ordering matters more than the pool: the strongest reasons are the
+ * ones true of this look and not the others.
+ */
+function explainAll(
+  specs: LookTemplate[],
+  profile: ColourProfile,
+  garment?: GarmentInfluence,
+): string[] {
+  const total = specs.length;
+
   // The outfit's influence is deliberately subtle in the colours, so it is stated plainly here
   // instead. A visible reason reads as judgement; a big colour shift would just read as a filter.
-  const fit = garment && !garment.neutral && garment.loudness > 0.5
-    ? "stepped back, so your outfit leads"
-    : garment?.neutral
+  // It belongs to one look, not all of them: it is a fact about the outfit, and stamping it on
+  // every card was most of what made them identical.
+  const outfitReason = !garment
+    ? null
+    : garment.neutral
       ? "your outfit is quiet, so this can speak up"
-      : garment && garment.hue !== null
-        ? "the eye picks up your outfit"
-        : spec.affinity?.[profile.season]
-          ? `suits ${profile.season} colouring`
-          : profile.contrast > 0.6
-            ? "your contrast carries it"
-            : profile.contrast < 0.35
-              ? "kept soft, like your colouring"
-              : `built around your ${profile.undertone.toLowerCase()} undertone`;
-  // Two sentences rather than one joined by a dash. The note describes the look and the fit says
-  // why it was picked for her; they are separate claims and read better as separate sentences.
-  const note = `${spec.note[0].toUpperCase()}${spec.note.slice(1)}`;
-  return `${note}. ${fit[0].toUpperCase()}${fit.slice(1)}.`;
+      : garment.loudness > 0.5
+        ? "stepped back, so your outfit leads"
+        : "the eye picks up your outfit";
+
+  // Whichever look sits closest to what her colouring carries. It gets the outfit line, since
+  // that is the look the outfit most shaped, and it is the natural home for "about right for you".
+  const wanted = preferredIntensity(profile) + (garment ? intensityShift(garment) : 0);
+  const centre = specs.reduce(
+    (best, spec, i) => (Math.abs(spec.intensity - wanted) < Math.abs(specs[best].intensity - wanted) ? i : best),
+    0,
+  );
+
+  const personal =
+    profile.contrast > 0.6
+      ? "your contrast carries it"
+      : profile.contrast < 0.35
+        ? "kept soft, like your colouring"
+        : `built around your ${profile.undertone.toLowerCase()} undertone`;
+
+  const used = new Set<string>();
+  return specs.map((spec, i) => {
+    const candidates = [
+      spec.affinity?.[profile.season] ? `suits ${profile.season} colouring` : "",
+      i === centre && outfitReason ? outfitReason : "",
+      i === 0 ? `the quietest of the ${spell(total)}, for when you want almost nothing` : "",
+      i === total - 1 ? `the boldest of the ${spell(total)}, for when you want it seen` : "",
+      i === centre ? "about as much as your colouring carries" : "",
+      outfitReason ?? "",
+      personal,
+      // Last resort, and the only one guaranteed to differ: no two templates in a set share both
+      // a finish and a register, because selection seeds one look per register.
+      `a ${spec.lip.texture} lip, kept ${spec.register}`,
+    ];
+
+    const fit = candidates.find((c) => c && !used.has(c)) ?? candidates[candidates.length - 1];
+    used.add(fit);
+
+    // Two sentences rather than one joined by a dash. The note describes the look and the fit says
+    // why it was picked for her; they are separate claims and read better as separate sentences.
+    const note = `${spec.note[0].toUpperCase()}${spec.note.slice(1)}`;
+    return `${note}. ${fit[0].toUpperCase()}${fit.slice(1)}.`;
+  });
 }
 
 // --- Entry points ----------------------------------------------------------------------------
 
 function fill(
   spec: LookTemplate,
-  inputs: { colors: Measured; profile: ColourProfile; garment?: GarmentInfluence },
+  inputs: { colors: Measured; profile: ColourProfile; garment?: GarmentInfluence; why: string },
 ): FilledLook {
   const { effects, palette, live, checks, placements, conventionalLip } = buildEffects(spec, inputs);
   return {
     templateId: spec.id,
     label: spec.name,
-    why: explain(spec, inputs.profile, inputs.garment),
+    why: inputs.why,
     register: spec.register,
     finish: spec.lip.texture,
     lipColor: live.lip,
@@ -768,13 +824,16 @@ export function selectLooks(
   garment?: GarmentInfluence,
 ): FilledLook[] {
   const profile = analyseColouring(colors, fitzpatrick);
-  return selectTemplates(profile, count, garment).map((spec) => fill(spec, { colors, profile, garment }));
+  const specs = selectTemplates(profile, count, garment);
+  const whys = explainAll(specs, profile, garment);
+  return specs.map((spec, i) => fill(spec, { colors, profile, garment, why: whys[i] }));
 }
 
 /** Every template, filled. For the engine lab and the API probes — not the user-facing path. */
 export function fillLooks(colors: Measured, fitzpatrick: FitzpatrickScale | null = null): FilledLook[] {
   const profile = analyseColouring(colors, fitzpatrick);
-  return TEMPLATES.map((spec) => fill(spec, { colors, profile }));
+  const whys = explainAll(TEMPLATES, profile);
+  return TEMPLATES.map((spec, i) => fill(spec, { colors, profile, why: whys[i] }));
 }
 
 export const TEMPLATE_COUNT = TEMPLATES.length;
