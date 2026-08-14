@@ -6,16 +6,14 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 /**
- * Serve MediaPipe's wasm from the installed package instead of a CDN.
+ * Serve MediaPipe's wasm from the installed package instead of a CDN, in dev only.
  *
- * The live preview was loading `@mediapipe/tasks-vision@latest/wasm` from jsDelivr while the
- * bundled JS glue was 1.0.1. A mismatched pair degrades quietly rather than failing: face
- * detection measured 136ms per frame on a real machine, which is what the non-SIMD build costs,
- * and the preview ran at six frames a second. Pinning it to the version actually installed also
- * means the demo does not depend on a CDN being reachable.
+ * Loading `@mediapipe/tasks-vision@latest/wasm` from a CDN against bundled glue at 1.0.1
+ * mismatched quietly rather than failing: face detection cost 136ms a frame, which is the
+ * non-SIMD build's price. Pinning it to the installed version fixed that.
  *
- * The three builds are ~12MB each, so they are served out of node_modules rather than copied into
- * the repo. FilesetResolver picks one at runtime by feature detection and fetches only that one.
+ * Dev only because the live preview it serves has been cut. The three builds are ~12MB each and
+ * were 34MB of a 42MB deploy for code nothing routes to. See components/LivePreview.tsx.
  */
 function mediapipeWasm(): Plugin {
   const require = createRequire(import.meta.url);
@@ -48,15 +46,6 @@ function mediapipeWasm(): Plugin {
         );
         res.end(readFileSync(source));
       });
-    },
-    generateBundle() {
-      for (const [name, source] of files) {
-        this.emitFile({
-          type: "asset",
-          fileName: `mediapipe/${name}`,
-          source: readFileSync(source),
-        });
-      }
     },
   };
 }
