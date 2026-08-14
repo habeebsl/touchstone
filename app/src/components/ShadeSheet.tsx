@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
 import Swatch, { HexLabel } from "./ui/Swatch";
+import { useScrollLock } from "./ui/useScrollLock";
+import { nameShade } from "../lib/colorEngine/shadeName";
 import type { FilledLook } from "../lib/colorEngine/template";
 
 interface ShadeSheetProps {
@@ -39,6 +41,10 @@ const PALETTE_ROWS: Array<{ key: string; label: string; note: string }> = [
 export default function ShadeSheet({ look, open, onClose }: ShadeSheetProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
+  // The looks behind this are a long scrolling list, so without a lock the page slides away under
+  // the sheet and the look it describes is no longer the one on screen.
+  useScrollLock(open);
+
   // Escape closes it. On a phone this is the back-gesture's job, but the app is just as likely to
   // be opened on a laptop by a judge.
   useEffect(() => {
@@ -55,7 +61,11 @@ export default function ShadeSheet({ look, open, onClose }: ShadeSheetProps) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
+    // Bottom sheet on a phone, centred dialog on a laptop. It used to be a sheet everywhere, which
+    // was right while the app was a 420px column at every size: it lined up with that column. Now
+    // the looks behind it are a grid, so a sheet clinging to the bottom edge would be the one
+    // thing on screen still pretending the window is a phone.
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6">
       {/* Dimmed, not opaque: the look stays visible behind it, which is the point of comparing. */}
       <button
         type="button"
@@ -70,7 +80,7 @@ export default function ShadeSheet({ look, open, onClose }: ShadeSheetProps) {
         aria-modal="true"
         aria-label={`Every shade in the ${look.label} look`}
         tabIndex={-1}
-        className="relative flex max-h-[80dvh] w-full max-w-[420px] flex-col rounded-t-2xl bg-background focus:outline-none"
+        className="relative flex max-h-[80dvh] w-full max-w-[420px] flex-col rounded-t-2xl bg-background focus:outline-none sm:max-h-[75dvh] sm:max-w-lg sm:rounded-2xl sm:border sm:border-border sm:shadow-xl"
       >
         <header className="flex items-start justify-between gap-4 px-6 pb-4 pt-6">
           <div>
@@ -88,13 +98,20 @@ export default function ShadeSheet({ look, open, onClose }: ShadeSheetProps) {
           </button>
         </header>
 
-        <ul className="flex-1 overflow-y-auto px-6 pb-2">
+        {/* `overscroll-contain` so reaching the end of the shade list does not hand the scroll
+            back to whatever is underneath, which is the same bug arriving by a different route. */}
+        <ul className="flex-1 overflow-y-auto overscroll-contain px-6 pb-2">
           {PALETTE_ROWS.map(({ key, label, note }) =>
             look.palette[key] ? (
               <li key={key} className="flex items-center gap-4 border-t border-border py-3 first:border-t-0">
                 <Swatch color={look.palette[key]} size="md" />
                 <div className="min-w-0 flex-1">
-                  <p className="font-body text-sm font-medium text-foreground">{label}</p>
+                  {/* Role, then what the colour actually is. The role tells her where it goes and
+                      the name is the part she can repeat in a shop, so both have to be here: a
+                      row reading "Lip / #a7075d" told her nothing she could carry out of the app. */}
+                  <p className="font-body text-sm font-medium text-foreground">
+                    {label} <span className="text-muted">· {nameShade(look.palette[key])}</span>
+                  </p>
                   <p className="font-body text-xs leading-relaxed text-muted">{note}</p>
                 </div>
                 <HexLabel value={look.palette[key].toUpperCase()} className="shrink-0 text-muted" />
