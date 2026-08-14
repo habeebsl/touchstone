@@ -25,7 +25,7 @@ export default function ColouringSummary({ colors, profile }: ColouringSummaryPr
 
   return (
     <section className="mb-8 rounded-lg border border-border bg-surface">
-      <div className="flex items-center gap-4 px-5 py-4">
+      <div className="flex items-center gap-4 px-5 py-4 md:px-8 md:py-5">
         <Swatch color={colors.skin_color} size="lg" />
         <div className="min-w-0 flex-1">
           <p className="font-body text-base font-medium text-foreground">
@@ -45,8 +45,11 @@ export default function ColouringSummary({ colors, profile }: ColouringSummaryPr
         </button>
       </div>
 
+      {/* Stacked on a phone, three columns once there is room. The dividers turn with them, so the
+          three kinds of claim stay visibly separate either way rather than running together into
+          one wide block of text. */}
       {open && (
-        <div className="flex flex-col divide-y divide-border border-t border-border">
+        <div className="flex flex-col divide-y divide-border border-t border-border md:grid md:grid-cols-3 md:divide-x md:divide-y-0">
           {/* Measured, derived and prescriptive are three different kinds of claim, so they get
               three sections rather than one run of sentences. Anything we did not measure should
               never be able to pass for something we did. */}
@@ -101,7 +104,9 @@ export default function ColouringSummary({ colors, profile }: ColouringSummaryPr
 
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="px-5 py-4">
+    // Less generous than the header above: these are three columns inside the panel, not the
+    // panel itself, so they have their own edges to sit inside already.
+    <div className="px-5 py-4 md:px-6 md:py-5">
       <h3 className="font-label mb-3 text-xs uppercase tracking-widest text-muted">{title}</h3>
       {children}
     </div>

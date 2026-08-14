@@ -41,14 +41,22 @@ export default function PlacementProof({
   const differs = look.conventionalLip !== look.lipColor;
 
   return (
-    <section className="mt-10 rounded-lg border border-border bg-surface px-5 py-4">
-      <h2 className="font-label mb-3 text-xs uppercase tracking-widest text-muted">
+    // Full width, stacked on a phone and label-beside-content once there is room. Padding scales
+    // with the box: at 420px `px-5 py-4` is a card, at full width the same numbers leave the text
+    // pinned to the edge.
+    <section className="mt-10 rounded-lg border border-border bg-surface px-5 py-4 md:grid md:grid-cols-[13rem_minmax(0,1fr)] md:gap-8 md:px-8 md:py-7">
+      {/* The heading moves out to its own column once there is room, which is what lets the text
+          stop short of the right edge without leaving a hole: the space becomes the gap between a
+          label and its content rather than a paragraph that ran out. Filling the full width would
+          put these lines past 180 characters, which is roughly twice a comfortable read. */}
+      <h2 className="font-label mb-3 text-xs uppercase tracking-widest text-muted md:mb-0">
         How your shades were placed
       </h2>
 
-      {differs ? (
-        <>
-          <p className="font-body text-sm leading-relaxed text-foreground">
+      <div className="max-w-2xl">
+        {differs ? (
+          <>
+            <p className="font-body text-sm leading-relaxed text-foreground">
             Makeup colour is normally placed below your skin&rsquo;s own lightness. On your
             colouring there is little room below, and going there costs the colour itself.
           </p>
@@ -64,7 +72,9 @@ export default function PlacementProof({
           </p>
 
           {conventionalUrl ? (
-            <div className="mt-5 grid grid-cols-2 gap-3">
+            // Capped too. Two faces blown up to full desktop width would dominate the screen far
+            // past what the comparison needs, and it is a footnote to the looks, not the payoff.
+            <div className="mt-5 grid max-w-xl grid-cols-2 gap-3">
               <Rendered label="The usual way" src={conventionalUrl} hex={look.conventionalLip} />
               <Rendered label="Yours" src={adaptedUrl} hex={look.lipColor} />
             </div>
@@ -84,9 +94,10 @@ export default function PlacementProof({
           Makeup colour is normally placed below your skin&rsquo;s own lightness. On your colouring
           there is room for that, so it needed no adjusting. The shades below are where both rules
           agree. It starts to matter on deeper skin, where there isn&rsquo;t room and the usual rule
-          runs the colour toward black.
-        </p>
-      )}
+            runs the colour toward black.
+          </p>
+        )}
+      </div>
     </section>
   );
 }

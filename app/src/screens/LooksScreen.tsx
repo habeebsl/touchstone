@@ -4,6 +4,7 @@ import ColouringSummary from "../components/ColouringSummary";
 import ShadeSheet from "../components/ShadeSheet";
 import PlacementProof from "../components/PlacementProof";
 import { TEMPLATE_COUNT, type FilledLook } from "../lib/colorEngine/template";
+import { nameShadeTitle } from "../lib/colorEngine/shadeName";
 import type { ColourProfile } from "../lib/colorEngine/season";
 import type { NormalisedColors } from "../lib/colorEngine/normalise";
 
@@ -35,12 +36,20 @@ interface LooksScreenProps {
  * card, and the hex is the part that does not earn its width here: this is a view she scans, and
  * the swatch already carries the colour. The values are on the look's own screen, where there is
  * room and where she is actually considering one shade.
+ *
+ * The name does earn it, and it is the reason these became rows rather than a wrapped line. A
+ * horizontal row of three left about 90px each, which holds "LIP" and nothing else; a hex is a
+ * measurement she cannot repeat to anyone, so without the name the swatch was the only part of
+ * this she could act on, and only while looking at it.
  */
-function SwatchPair({ label, color }: { label: string; color: string }) {
+function SwatchRow({ label, color }: { label: string; color: string }) {
   return (
-    <div className="flex min-w-0 items-center gap-2">
+    <div className="flex min-w-0 items-center gap-3">
       <Swatch color={color} size="md" />
-      <span className="font-label text-xs uppercase tracking-widest text-muted">{label}</span>
+      <span className="font-label w-10 shrink-0 text-xs uppercase tracking-widest text-muted">
+        {label}
+      </span>
+      <span className="font-body min-w-0 truncate text-sm text-foreground">{nameShadeTitle(color)}</span>
     </div>
   );
 }
@@ -67,9 +76,9 @@ export default function LooksScreen({
     [...looks].sort((a, b) => REGISTER_ORDER[b.look.register] - REGISTER_ORDER[a.look.register])[0];
 
   return (
-    <MobileShell>
-      <section className="mb-10 mt-12">
-        <h1 className="font-headline mb-2 text-3xl font-medium tracking-tight text-foreground">
+    <Shell>
+      <section className="mb-10 mt-12 md:mt-16">
+        <h1 className="font-headline mb-2 text-3xl font-medium tracking-tight text-foreground md:text-4xl">
           {looks.length} looks, matched to you
         </h1>
         <p className="font-body text-base text-muted">
@@ -79,7 +88,11 @@ export default function LooksScreen({
 
       <ColouringSummary colors={colors} profile={profile} />
 
-      <div className="flex flex-col gap-10">
+      {/* A grid, not a column, once there is room. Five looks exist to be compared and a phone can
+          only ever show one at a time; on a laptop that became five screens of scrolling with no
+          two ever side by side. `items-start` so a card with no eyeshadow swatch keeps its own
+          height instead of being stretched to match its row. */}
+      <div className="grid grid-cols-1 items-start gap-10 md:grid-cols-2 md:gap-8 lg:grid-cols-3">
         {looks.map((rendered) => (
           <button
             key={rendered.look.templateId}
@@ -107,11 +120,11 @@ export default function LooksScreen({
                   follows her hair, contour sits a shade under her skin — and showing all of it
                   would bury the shades she might actually go and buy. The rest is on the look's
                   own screen, where she is considering one look rather than scanning five. */}
-              <div className="flex flex-wrap gap-x-6 gap-y-3">
-                <SwatchPair label="Lip" color={rendered.look.lipColor} />
-                <SwatchPair label="Blush" color={rendered.look.blushColor} />
+              <div className="flex flex-col gap-3">
+                <SwatchRow label="Lip" color={rendered.look.lipColor} />
+                <SwatchRow label="Blush" color={rendered.look.blushColor} />
                 {rendered.look.palette.shadowAccent && (
-                  <SwatchPair label="Eye" color={rendered.look.palette.shadowAccent} />
+                  <SwatchRow label="Eye" color={rendered.look.palette.shadowAccent} />
                 )}
               </div>
             </div>
@@ -152,7 +165,7 @@ export default function LooksScreen({
 
 
       {shades && <ShadeSheet look={shades.look} open onClose={() => setShades(null)} />}
-    </MobileShell>
+    </Shell>
   );
 }
 
@@ -160,11 +173,16 @@ export default function LooksScreen({
  * No back arrow. This is the destination of a linear flow, so a top-left arrow would be an
  * ambiguous, reflexively-tapped control whose only real meaning is "throw away a result that
  * cost 35 API units". The escape hatch lives below the looks instead, named for what it does.
+ *
+ * This is the one screen that widens. The steps before it ask for a single thing at a time and a
+ * wide column would only put more distance between the question and its answer, but this screen
+ * is five renders meant to be compared, and comparison is exactly what a phone column cannot do.
+ * On a laptop the looks were five screens of scrolling with no two ever visible together.
  */
-function MobileShell({ children }: { children: ReactNode }) {
+function Shell({ children }: { children: ReactNode }) {
   return (
-    <div className="mx-auto min-h-dvh w-full max-w-[420px] bg-background">
-      <main className="px-6">{children}</main>
+    <div className="mx-auto min-h-dvh w-full max-w-[420px] bg-background md:max-w-3xl lg:max-w-6xl">
+      <main className="px-6 md:px-8">{children}</main>
     </div>
   );
 }
