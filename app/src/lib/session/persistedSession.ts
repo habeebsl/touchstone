@@ -3,9 +3,7 @@ import type { GarmentSwatch } from "../garment/palette";
 import type { ColourProfile } from "../colorEngine/season";
 import type { FacialColorTonesResult, FitzpatrickScale } from "../youcam/types";
 
-// Bumped whenever the stored shape changes. A session written by an older build restored
-// *partially* once — its profile cited a Fitzpatrick type that the session itself no longer
-// carried — and a stale entry that half-works is worse than none.
+// Bumped whenever the stored shape changes: a half-restored session is worse than none.
 const KEY = "undertone.session.v4";
 
 /**
@@ -21,20 +19,11 @@ export interface PersistedSession {
   profile: ColourProfile;
   /** Kept so a restored session does not claim the depth was estimated without it. */
   fitzpatrick: FitzpatrickScale | null;
-  /**
-   * The outfit her looks were built around, so a restore can derive the same set.
-   *
-   * Previously dropped, which meant a reload silently rebuilt an outfit-influenced session as if
-   * she had skipped the question. Template selection depends on it, so without it the looks that
-   * come back are not the looks that were paid for.
-   */
+  /** The outfit her looks were built around. Template selection depends on it, so without it a
+   *  reload returns looks that are not the ones that were paid for. */
   garment: GarmentSwatch[] | null;
-  /**
-   * A downscaled copy of her photo, for the foundation comparison's bare side.
-   *
-   * The live version is an object URL, which does not survive a reload. Null when the downscale
-   * failed, which the comparison handles by saying so rather than by offering a dead button.
-   */
+  /** A downscaled copy of her photo for the foundation comparison. Null when the downscale
+   *  failed, which the comparison reports rather than offering a dead button. */
   sourceImage: string | null;
   looks: Array<{ look: FilledLook; imageUrl: string }>;
   selectedTemplateId: string | null;
@@ -43,13 +32,11 @@ export interface PersistedSession {
 /**
  * Survives a page reload.
  *
- * A completed run costs 35 API units against a 1,000-unit budget, so losing it to an
- * accidental refresh — or to mobile Safari discarding the tab under memory pressure, which this
- * app invites with WASM, WebGL and a live camera — is expensive. Only a *finished* analysis is
- * stored: an in-flight one has pending network promises that cannot be resumed.
+ * A completed run costs 35 API units, so losing it to a refresh is expensive. Only a finished
+ * analysis is stored; an in-flight one has pending promises that cannot be resumed.
  *
- * sessionStorage, not localStorage: this is deliberately per-tab and temporary. The product has
- * no "save your looks" feature and shouldn't imply one.
+ * sessionStorage, not localStorage: per-tab and temporary. There is no "save your looks" feature
+ * and this should not imply one.
  */
 export function loadSession(): PersistedSession | null {
   try {
@@ -61,8 +48,7 @@ export function loadSession(): PersistedSession | null {
       return null;
     }
 
-    // Validate shape before handing it to the UI. A session written by an older build would
-    // otherwise crash rendering on a missing field, which surfaces as a blank page.
+    // Validate before handing it to the UI: a missing field crashes rendering as a blank page.
     const wellFormed = parsed.looks.every(
       (entry) =>
         typeof entry?.imageUrl === "string" &&

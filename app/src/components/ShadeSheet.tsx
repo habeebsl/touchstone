@@ -61,10 +61,8 @@ export default function ShadeSheet({ look, open, onClose }: ShadeSheetProps) {
   if (!open) return null;
 
   return (
-    // Bottom sheet on a phone, centred dialog on a laptop. It used to be a sheet everywhere, which
-    // was right while the app was a 420px column at every size: it lined up with that column. Now
-    // the looks behind it are a grid, so a sheet clinging to the bottom edge would be the one
-    // thing on screen still pretending the window is a phone.
+    // Sheet on a phone, centred dialog on a laptop. A sheet was right while the app was a 420px
+    // column at every size; the looks behind it are a grid now.
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6">
       {/* Dimmed, not opaque: the look stays visible behind it, which is the point of comparing. */}
       <button
@@ -98,17 +96,14 @@ export default function ShadeSheet({ look, open, onClose }: ShadeSheetProps) {
           </button>
         </header>
 
-        {/* `overscroll-contain` so reaching the end of the shade list does not hand the scroll
-            back to whatever is underneath, which is the same bug arriving by a different route. */}
+        {/* `overscroll-contain` so the end of the list does not hand scroll back to the page. */}
         <ul className="flex-1 overflow-y-auto overscroll-contain px-6 pb-2">
           {PALETTE_ROWS.map(({ key, label, note }) =>
             look.palette[key] ? (
               <li key={key} className="flex items-center gap-4 border-t border-border py-3 first:border-t-0">
                 <Swatch color={look.palette[key]} size="md" />
                 <div className="min-w-0 flex-1">
-                  {/* Role, then what the colour actually is. The role tells her where it goes and
-                      the name is the part she can repeat in a shop, so both have to be here: a
-                      row reading "Lip / #a7075d" told her nothing she could carry out of the app. */}
+                  {/* Role says where it goes, name is the part she can repeat in a shop. */}
                   <p className="font-body text-sm font-medium text-foreground">
                     {label} <span className="text-muted">· {nameShade(look.palette[key])}</span>
                   </p>

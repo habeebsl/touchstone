@@ -18,20 +18,10 @@ interface FoundationMatchProps {
 /**
  * The foundation guidance, with something to look at.
  *
- * This was the only output in the product that was words alone. Foundation is deliberately never
- * rendered onto the looks, because done correctly it is invisible and done incorrectly on deep
- * skin it reads as skin-lightening, so it was left as "Rich depth, cool red undertone" and she was
- * asked to picture it. By the research foundation.ts cites, it is also the decision people find
- * hardest, which made the least legible thing on screen the highest-stakes one.
- *
- * Three shades rather than one, because a single swatch claims a precision the measurement has
- * not got: skin_color is an average off a photo of her face, and foundation is matched at the jaw.
- * A range is not a hedge here, it is the instruction, and it is what anyone does at a counter.
- *
- * The lighter shade is labelled by what going wrong looks like rather than offered as an option.
- * On deep skin a too-light render is a lightened photograph of her, and the difference between
- * teaching her to recognise that and quietly presenting it as a choice is entirely in the words
- * around it.
+ * Foundation is never rendered onto the looks (see foundation.ts), which left this as words alone
+ * for the decision people find hardest. Shades are labelled by what going wrong looks like rather
+ * than offered as options: on deep skin a too-light render is a lightened photograph of her, and
+ * only the words around it separate teaching from quietly presenting that as a choice.
  */
 export default function FoundationMatch({
   skinHex,
@@ -42,8 +32,7 @@ export default function FoundationMatch({
   onRender,
 }: FoundationMatchProps) {
   const shades = foundationShades(skinHex);
-  // Her own measurement is the one worth looking at first; the other two exist to be compared
-  // against it, not to be considered on equal footing.
+  // Her own measurement first; the other two exist to be compared against it.
   const [selectedId, setSelectedId] = useState("match");
   const selected = shades.find((s) => s.id === selectedId) ?? shades[1];
   const selectedRender = renders[selected.id];
@@ -60,20 +49,15 @@ export default function FoundationMatch({
         three shades around that reading, and all three hold that same undertone. Only the depth
         moves.
       </p>
-      {/* The undertone being held is the instruction, not a detail of the implementation: it is
-          the axis foundation is most often got wrong on, and it is what she should hold fixed
-          while trying shades. Saying only "here are three shades" leaves her free to wander off
-          it, which is the mistake this section exists to prevent. */}
+      {/* Undertone held fixed is the instruction, not an implementation detail. */}
       <p className="font-body mt-2 max-w-2xl text-sm leading-relaxed text-muted">
         A correct foundation disappears into your skin, so try each and look for the one that stops
         being visible. Shade codes do not carry between brands, so ask for a depth and an undertone
         rather than a number you saw somewhere else.
       </p>
 
-      {/* One at a time, picked from a row of three. Rendering all three at once cost about 1500px
-          of stacked faces to show two comparisons nobody was looking at: a wipe can only be
-          dragged one at a time, so the other two were height without a reader. Switching back is
-          free, since a rendered shade is kept. */}
+      {/* One at a time: a wipe can only be dragged one at a time, so three at once was ~1500px of
+          stacked faces for two comparisons nobody was looking at. Rendered shades are kept. */}
       <div className="mt-5 flex flex-wrap gap-2" role="tablist" aria-label="Foundation shades to try">
         {shades.map((shade) => {
           const on = shade.id === selected.id;
@@ -128,9 +112,7 @@ export default function FoundationMatch({
             {busyId === selected.id ? "Rendering…" : "Try this one on my face"}
           </button>
         ) : (
-          // Rather than a button that greys out for a reason nobody can see. Without her bare
-          // photo there is no "before" side, so the comparison cannot be built at all, and saying
-          // that is more use than a dead control.
+          // Rather than a button that greys out for a reason nobody can see.
           <p className="font-body text-xs leading-relaxed text-muted">
             We no longer have your original photo to compare against. Start over to try shades on
             your own face; the shades above are still yours.
@@ -138,8 +120,7 @@ export default function FoundationMatch({
         )}
       </div>
 
-      {/* The limitation, stated as the instruction it implies. Next to one shade this would read
-          as "here is your match, but do not trust it"; next to three it is just correct advice. */}
+      {/* The limitation as the instruction it implies. */}
       <p className="font-body mt-5 max-w-2xl text-xs leading-relaxed text-muted">
         Screens are not colour-accurate, yours or ours, so treat these as where to start rather
         than what to buy. Test the shade on your jaw in daylight and pick whichever disappears.

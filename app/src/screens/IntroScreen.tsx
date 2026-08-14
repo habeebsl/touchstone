@@ -10,13 +10,9 @@ interface IntroScreenProps {
 /**
  * Screen 1. One headline, one button, and a way in for anyone who will not use the camera.
  *
- * The samples sit below the camera rather than beside it. A selfie is the product and the samples
- * are the demonstration, so making them equal would say the app is a gallery of strangers. Kept
- * visible rather than behind a link because the people most likely to want them, judges and
- * anyone on a desktop, are also the least likely to go hunting.
- *
- * They do not depend on `disabled`: that flag tracks Camera Kit warming up, and the whole point
- * of a sample is that it needs no camera at all.
+ * Samples sit below the camera, not beside it: a selfie is the product and these are the
+ * demonstration. They ignore `disabled`, which tracks Camera Kit warming up, since the point of a
+ * sample is that it needs no camera.
  */
 export default function IntroScreen({ onStart, onSample, disabled = false }: IntroScreenProps) {
   return (
@@ -41,8 +37,7 @@ export default function IntroScreen({ onStart, onSample, disabled = false }: Int
         </button>
 
         <div className="mt-6">
-          {/* "Generated" carries the disclosure that used to be a paragraph underneath. Anyone who
-              assumes these are customers has been misled by us, and one word costs no lines. */}
+          {/* "Generated" carries the disclosure, in one word rather than a paragraph. */}
           <p className="font-label mb-3 text-center text-xs uppercase tracking-widest text-muted">
             Or try a generated face
           </p>

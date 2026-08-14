@@ -1,19 +1,12 @@
-// Three faces offered on the intro screen, so the app can be tried without a camera.
+// Three faces and three garments, so the app can be tried without a camera or an outfit photo.
 //
-// This exists for two audiences. A judge on a laptop who does not want to photograph themselves
-// still needs to reach the payoff, and the argument this project makes is about how placement
-// behaves across skin depth — which cannot be shown by one person's face, however good the
-// analysis of it is.
-//
-// They are deliberately spread across the Fitzpatrick range rather than chosen for variety's
-// sake: the adaptation in palette.ts is inert above ADAPTS_BELOW and only binds where there is no
-// room beneath the skin's own lightness. Three faces from the same band would demonstrate
+// The faces span Fitzpatrick II, IV and VI because the adaptation in palette.ts is inert until
+// there is no room beneath the skin's own lightness; three from one band would demonstrate
 // nothing. See docs/SWEEP.md for the same span computed rather than photographed.
 //
-// The images are generated rather than photographs of real people. That is a deliberate trade:
-// it costs the credibility of a real capture, and buys identical lighting, guaranteed bare faces
-// and no likeness to license. The one fixture marked `measured: true` in analysisFixtures.ts is a
-// real live-API capture, and the README says all of this plainly.
+// They are generated, not photographs of real people: that trades the credibility of a real
+// capture for identical lighting, guaranteed bare faces and no likeness to license. The fixture
+// marked `measured: true` in analysisFixtures.ts is a real capture.
 
 import type { FitzpatrickScale } from "../youcam/types";
 
@@ -77,16 +70,9 @@ export interface SampleOutfit {
 }
 
 /**
- * Three garments, one per branch of garmentInfluence().
- *
- * An outfit does one of three things to a look: leads and makes the face step back, gets picked
- * up by the eye, or stays out of the way and lets the makeup lead. Three dresses of similar
- * saturation would run the same branch three times and demonstrate one behaviour, so these are
- * chosen by measured chroma rather than by looking different from each other.
- *
- * The thresholds they are placed against live in garment/influence.ts: below 0.035 chroma an
- * outfit carries no usable hue, and loudness of 0.5 is where it starts to lead. Verified by
- * running the real extraction over them, not by eye.
+ * Three garments, one per branch of garmentInfluence(): leads, gets picked up, stays out of the
+ * way. Chosen by measured chroma against the thresholds in garment/influence.ts (0.035 for a
+ * usable hue, 0.5 loudness to lead) and verified by running the real extraction, not by eye.
  */
 export const SAMPLE_OUTFITS: SampleOutfit[] = [
   {
@@ -113,12 +99,10 @@ export const SAMPLE_OUTFITS: SampleOutfit[] = [
 ];
 
 /**
- * Fetch a sample as a File, so it enters the pipeline through exactly the path a real photo does.
+ * Fetch a sample as a File, so it enters through the path a real photo does.
  *
- * For a face that is upload, analyse, render. Passing the public URL to the API as `src_file_url`
- * would work for the analysis and then strand the renders, which key off the `src_file_id` the
- * upload returns. Reusing the photo path also means the sample flow cannot drift from the real
- * one, because there is only one flow.
+ * Passing the public URL as `src_file_url` would analyse fine and strand the renders, which key
+ * off the `src_file_id` the upload returns.
  */
 export async function sampleAsFile(sample: SampleSubject | SampleOutfit): Promise<File> {
   const res = await fetch(sample.image);

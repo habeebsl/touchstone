@@ -49,17 +49,12 @@ const RENDER_STEPS = LOOKS_SHOWN;
 /**
  * Rebuild a restored session's looks from its stored inputs.
  *
- * A session stores whole FilledLooks, so before this it replayed whatever the build that wrote it
- * had computed: change the engine, reload, and the screen shows the old text and the old colours
- * with no indication anything is stale. That is invisible in a way a crash never is, and it cost
- * an afternoon of "the fix didn't work" when the fix had worked.
+ * Only the renders survive a reload, since they are the one thing that cannot be recomputed;
+ * everything else is derived again. Replaying stored FilledLooks instead meant an engine change
+ * showed stale text and colours after a refresh, with nothing to indicate it.
  *
- * So only the renders survive a reload, because a render is the one thing that cannot be
- * recomputed. Everything else is derived again from her measurements and her outfit.
- *
- * Returns null when the freshly selected templates no longer match what was rendered. That means
- * selection itself changed, so the images on file are of looks we would no longer offer, and
- * showing them under new labels would be worse than starting over.
+ * Null when the fresh selection no longer matches what was rendered: selection itself changed, so
+ * the images on file are of looks we would no longer offer.
  */
 function rehydrate(session: PersistedSession): RenderedLook[] | null {
   const { colors } = normaliseMeasured(session.colors);
@@ -106,12 +101,10 @@ export default function UndertoneApp() {
   const [comparisonUrl, setComparisonUrl] = useState<string | null>(null);
   const [comparing, setComparing] = useState(false);
 
-  // Her photo as the browser can display it, for the "before" side of the foundation wipe. Held
-  // rather than persisted: for a capture it is an object URL, which does not survive a reload, and
-  // the section degrades to hiding its buttons rather than showing a broken image.
+  // Her photo for the "before" side of the foundation wipe: a live object URL, plus a downscaled
+  // copy that survives a reload. See lib/session/sourceImage.ts.
   const [sourceUrl, setSourceUrl] = useState<string | null>(restored?.sourceImage ?? null);
-  // The same photo as a data URL, held so a finished run can persist it. Computed once during
-  // the analysis rather than at save time, where it would add latency to the render pass.
+  // Computed during the analysis rather than at save time, so it adds no latency to rendering.
   const [sourceImage, setSourceImage] = useState<string | null>(restored?.sourceImage ?? null);
   const [foundationRenders, setFoundationRenders] = useState<Record<string, string>>({});
   const [foundationBusy, setFoundationBusy] = useState<string | null>(null);
@@ -160,11 +153,9 @@ export default function UndertoneApp() {
       const advance = () => setStepsDone((n) => n + 1);
 
       try {
-        // Kept for the foundation comparison's "before" side, which needs her photo as an image
-        // rather than as the file id the API works in.
+        // The comparison needs her photo as an image, not as the file id the API works in.
         setSourceUrl(URL.createObjectURL(file));
-        // Not awaited: the object URL above is already on screen, and this only has to be ready
-        // by the time a finished run is saved.
+        // Not awaited: only has to be ready by the time a finished run is saved.
         void toStoredImage(file).then(setSourceImage);
 
         const uploadedFileId = await client.uploadFile(file);
@@ -234,12 +225,9 @@ export default function UndertoneApp() {
   );
 
   /**
-   * Run a sample subject through the ordinary capture path.
-   *
-   * The image is fetched and handed over as a File, so upload, analysis and rendering are the
-   * same code the camera reaches. Where a subject has a stored analysis its 30 units are replayed
-   * rather than spent; the renders always run for real, so what a judge sees is genuinely what
-   * the API produced for that face.
+   * A sample subject through the ordinary capture path: fetched as a File so upload, analysis and
+   * rendering are the code the camera reaches. A stored analysis replays its 30 units; the
+   * renders always run for real.
    */
   const handleSample = useCallback(
     async (subject: SampleSubject) => {
@@ -297,11 +285,9 @@ export default function UndertoneApp() {
   /**
    * Render one foundation shade onto her own photo, for the before/after wipe.
    *
-   * `skin_smooth` is pinned to zero, and that is the whole reason this function exists rather than
-   * reusing the look renderer. The API applies it at strength 50 when omitted, so the "after" side
-   * would come back airbrushed as well as tinted: she would read it as better because the pores
-   * had gone, and we would be demonstrating a beauty filter while claiming to demonstrate shade
-   * matching. Foundation alone, at full coverage and no glow, so the only variable is the colour.
+   * `skin_smooth` is pinned to zero, which is why this does not reuse the look renderer: the API
+   * applies it at 50 when omitted, so the "after" side would come back airbrushed as well as
+   * tinted and the comparison would be demonstrating a beauty filter.
    */
   const renderFoundation = useCallback(
     async (shadeId: string, hex: string) => {
@@ -365,8 +351,7 @@ export default function UndertoneApp() {
             colors: measured,
             profile,
             fitzpatrick,
-            // The outfit these were selected for, so a reload derives the same five rather than
-            // the five she would have been offered with no outfit at all.
+            // So a reload derives the same five, not the five she would get with no outfit.
             garment: garment ?? null,
             sourceImage,
             looks: rendered,
@@ -413,12 +398,8 @@ export default function UndertoneApp() {
     [client, measured],
   );
 
-  /**
-   * One of the garments we ship, run through the ordinary outfit path.
-   *
-   * Fetched here rather than in the screen so a failed fetch lands in the same recoverable error
-   * state as a failed upload, and the screen keeps one way of reporting trouble instead of two.
-   */
+  /** A shipped garment through the ordinary outfit path. Fetched here so a failed fetch lands in
+   *  the same recoverable error state as a failed upload. */
   const handleSampleOutfit = useCallback(
     async (outfit: SampleOutfit) => {
       setGarmentBusy(true);

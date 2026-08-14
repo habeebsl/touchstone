@@ -1,28 +1,16 @@
-// Turn a measured colour into words she can use.
+// A measured colour as words: "vivid brick", "deep berry".
 //
-// Every shade the engine picks was reaching the screen as a hex. A hex is a measurement, not
-// something anyone can say at a counter or type into a search box, so the most actionable part of
-// the result was also the least usable part of it. The foundation module already made this
-// argument for itself (see foundation.ts: "the two words to carry into a shop") and then only
-// carried it out for foundation.
-//
-// The vocabulary is makeup vocabulary, not colour-wheel vocabulary. A lipstick at hue 30° is a
-// brick or a terracotta; calling it "dark orange", which is what a generic namer produces, is
-// both accurate and useless. Names were chosen to match the words shades are actually sold and
-// searched under.
-//
-// This names a colour. It does not name a product, and the distinction is the same one foundation
-// draws: "warm terracotta" is a description of what she is holding, and any claim past that would
-// need a shade catalogue we do not have.
+// Makeup vocabulary, not colour-wheel vocabulary. A lip at hue 30 is a brick or a terracotta;
+// "dark orange" is accurate and useless. Names a colour, never a product — see foundation.ts for
+// why that line is drawn.
 
 import { hexToOklch } from "./oklch";
 
 /**
- * Makeup hue families, by OKLCh hue in degrees.
+ * Hue families by OKLCh degree, read as "up to" and wrapping at 360.
  *
- * Ordered and read as "up to", wrapping at 360. The arc from roughly 0 to 90 is where nearly
- * every lip, cheek and bronzer shade lives, so it carries most of the resolution; greens and blues
- * get one name each because they appear only as eyeshadow and rarely as anything else.
+ * 0-90 carries most of the resolution: it holds nearly every lip, cheek and bronzer shade. Greens
+ * and blues get one name each, appearing only as eyeshadow.
  */
 const FAMILIES: Array<{ upTo: number; name: string; deep?: string; pale?: string }> = [
   { upTo: 12, name: "crimson", deep: "wine", pale: "rose" },
@@ -40,12 +28,7 @@ const FAMILIES: Array<{ upTo: number; name: string; deep?: string; pale?: string
   { upTo: 361, name: "raspberry", deep: "wine", pale: "blush" },
 ];
 
-/**
- * Below this chroma there is no hue worth naming, so the name comes from lightness alone.
- *
- * Matches the garment palette's threshold rather than picking a second one: a colour that carries
- * no usable hue direction for an outfit carries none for a lip either.
- */
+/** Below this, name from lightness alone. Matches the garment palette's threshold. */
 const NEUTRAL_CHROMA = 0.035;
 
 /** Neutrals, by lightness. These are the browns, taupes and blacks a liner or brow lands on. */
@@ -53,8 +36,7 @@ const NEUTRALS: Array<{ upTo: number; name: string }> = [
   { upTo: 0.22, name: "black" },
   { upTo: 0.4, name: "espresso" },
   { upTo: 0.58, name: "taupe" },
-  // "Grey", not "greige": these are below the chroma at which any warmth is visible, so a name
-  // implying a cast would be describing a colour the swatch does not have.
+  // "Grey", not "greige": below the chroma at which any warmth is visible.
   { upTo: 0.75, name: "grey" },
   { upTo: 0.9, name: "ivory" },
   { upTo: 1.01, name: "white" },
@@ -77,51 +59,34 @@ function family(hue: number, lightness: number): string {
 }
 
 /**
- * How saturated it is, in the words a shade range uses.
+ * Where the modifiers start speaking, calibrated to the range makeup occupies rather than the
+ * whole colour space: lipsticks cluster at lightness 0.43-0.67 and saturation ratio 0.35-0.55.
  *
- * Only applied where it changes the picture. Everything in the middle of the chroma range gets no
- * modifier at all, because "medium terracotta" is noise and a name that is always three words long
- * stops being read.
- */
-/**
- * Where the modifiers start speaking, calibrated to the range makeup actually occupies.
- *
- * This is the correction that mattered. Set for the full theoretical colour space, both bands sat
- * entirely outside real shades: lipsticks cluster around lightness 0.43 to 0.67 and saturation
- * ratio 0.35 to 0.55, so nothing ever crossed a threshold and every warm lip came back "soft
- * brick". Chosen by sweeping them against every shade the fixtures produce and taking the values
- * that leave no two same-named shades further apart than dE 0.10, which is where a difference
- * stops being arguable. That is 0 of 210 pairs.
+ * Swept against every shade the fixtures produce, taking the values that leave no two same-named
+ * shades further apart than dE 0.10. Regenerate before changing one.
  */
 const SOFT_BELOW = 0.34;
 const VIVID_ABOVE = 0.48;
 const DEEP_BELOW = 0.45;
 const LIGHT_ABOVE = 0.62;
 
-/** Where a family swaps to its pale noun. Higher than LIGHT_ABOVE: "peach" is a stronger claim
- *  than "light brick" and should be reserved for shades that genuinely are pale. */
+/** Where a family swaps to its pale noun. Above LIGHT_ABOVE: "peach" is a stronger claim than
+ *  "light brick". */
 const PALE_ABOVE = 0.78;
 
 function saturationRatio(chroma: number, lightness: number): number {
-  // Chroma is bounded by lightness in sRGB: a deep shade cannot reach the numbers a mid one can,
-  // so a flat threshold would call every deep shade muted. Judged against what is reachable at
-  // this lightness instead. The 0.4 factor is the approximate ceiling near mid-lightness.
+  // sRGB bounds chroma by lightness, so a flat threshold would call every deep shade muted.
+  // Judged against what is reachable here instead; 0.4 is the approximate ceiling at mid-lightness.
   const headroom = Math.max(0.06, 0.4 * (1 - Math.abs(lightness - 0.55) / 0.55));
   return chroma / headroom;
 }
 
 /**
- * The one modifier, or none, taken from whichever axis is doing the distinguishing.
+ * One modifier, or none, from whichever axis is doing the distinguishing.
  *
- * Two earlier rules both failed, in opposite directions. Speaking only at the extremes left the
- * middle of the range wordless and gave four of one person's five lips the name "crimson" while
- * they sat up to dE 0.147 apart. Asking saturation first and lightness second then made a
- * different set worse: five warm lips all came back "soft" because they shared a saturation band,
- * even though they spanned dE 0.152 in lightness, which is the axis that actually separated them.
- *
- * So neither axis gets priority. Each proposes a word and how far past its threshold it is, in
- * units of its own band, and the more extreme one speaks. Two shades then share a name when they
- * are alike on both axes, which is when they really are the same shade.
+ * Neither axis gets priority: each proposes a word and how far past its threshold it sits, in
+ * units of its own band, and the more extreme one speaks. Giving either priority collapses sets
+ * that differ on the other one.
  */
 function modifier(chroma: number, lightness: number): string {
   const ratio = saturationRatio(chroma, lightness);
@@ -144,11 +109,10 @@ function modifier(chroma: number, lightness: number): string {
 }
 
 /**
- * The modifier for a noun that already carries its own depth, such as "mahogany" or "peach".
+ * The modifier for a noun that already carries depth ("mahogany", "peach").
  *
- * Same shape as `modifier`, except the lightness question is asked inside the variant's band
- * instead of across the whole scale. Below the midpoint of the deep band a shade is a deep one of
- * those; above the midpoint of the pale band, a pale one.
+ * As `modifier`, but lightness is judged inside the variant's own band. Judged against the whole
+ * scale, everything under DEEP_BELOW collapses to one word.
  */
 function carriedModifier(chroma: number, lightness: number): string {
   const ratio = saturationRatio(chroma, lightness);
@@ -177,11 +141,10 @@ function carriedModifier(chroma: number, lightness: number): string {
 }
 
 /**
- * A short, sayable name for a measured colour, e.g. "soft terracotta" or "deep berry".
+ * A short, sayable name: "soft terracotta", "deep berry".
  *
- * Deliberately at most two words. Three-word names read as marketing copy and stop carrying
- * information, and this sits under a swatch she can already see: the name only has to be enough to
- * repeat out loud, since the swatch is doing the describing.
+ * Two words at most. It sits under a swatch she can already see, so it only has to be repeatable
+ * out loud; a third word turns it into marketing copy.
  */
 export function nameShade(hex: string): string {
   const { l, c, h } = hexToOklch(hex);
@@ -194,15 +157,8 @@ export function nameShade(hex: string): string {
   const base = FAMILIES.find((f) => (((h % 360) + 360) % 360) < f.upTo);
   const carried = noun !== base?.name;
 
-  // A noun that already carries the depth cannot take the global depth word on top, or every
-  // shade under lightness 0.45 becomes "deep mahogany". But suppressing it entirely was worse:
-  // that band is where every deep-skin lip lives, so the whole range collapsed onto one word and
-  // #2c0d05 and #5a2316 both came back "mahogany" while sitting dE 0.129 apart. Those two are the
-  // conventional and adapted placement of the same lip, which is the one pair in the product that
-  // has to read differently.
-  //
-  // So the depth word is re-judged inside the variant's own band rather than against the whole
-  // scale: a mahogany in the darkest part of the mahogany range is a deep mahogany.
+  // A carried noun cannot take the global depth word on top, or everything under 0.45 becomes
+  // "deep mahogany". Suppressing it entirely is worse: see carriedModifier.
   const word = carried ? carriedModifier(c, l) : modifier(c, l);
   return word ? `${word} ${noun}` : noun;
 }

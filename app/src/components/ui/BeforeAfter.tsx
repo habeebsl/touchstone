@@ -12,15 +12,11 @@ interface BeforeAfterProps {
 /**
  * Two images, one wiped across the other.
  *
- * Built for foundation specifically, where the correct answer is that nothing visibly changes. A
- * side-by-side pair cannot show that: two near-identical images read as a rendering failure or as
- * two copies of the same photo. Dragging a seam across a continuous face is the one presentation
- * where "no seam appears" is legible as a result, so the invisibility that made foundation hard to
- * show becomes the thing being shown.
+ * For foundation, where the correct answer is that nothing visibly changes: side by side, two
+ * near-identical images read as a rendering failure, while a seam dragged across a continuous
+ * face makes "no seam appears" legible as a result.
  *
- * The control is a range input rather than pointer handlers on a div. It gets keyboard support,
- * touch, and a real accessibility role for free, and the hand-rolled version of this is a
- * well-known source of dropped pointer capture on mobile.
+ * A range input rather than pointer handlers, for keyboard, touch and a real role for free.
  */
 export default function BeforeAfter({
   beforeUrl,
@@ -36,8 +32,7 @@ export default function BeforeAfter({
       <div className="relative aspect-[3/4] w-full select-none overflow-hidden rounded-lg border border-border bg-border">
         <img src={beforeUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
 
-        {/* Clipped rather than resized, so both faces stay registered against each other. Scaling
-            the top image to a percentage width would slide her features sideways as it moves. */}
+        {/* Clipped, not resized: a percentage width would slide her features sideways. */}
         <div
           className="absolute inset-0 overflow-hidden"
           style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}

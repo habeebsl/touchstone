@@ -39,15 +39,9 @@ interface LooksScreenProps {
 }
 
 /**
- * No hex on the cards. Three swatches with their values came to roughly 440px against 370px of
- * card, and the hex is the part that does not earn its width here: this is a view she scans, and
- * the swatch already carries the colour. The values are on the look's own screen, where there is
- * room and where she is actually considering one shade.
- *
- * The name does earn it, and it is the reason these became rows rather than a wrapped line. A
- * horizontal row of three left about 90px each, which holds "LIP" and nothing else; a hex is a
- * measurement she cannot repeat to anyone, so without the name the swatch was the only part of
- * this she could act on, and only while looking at it.
+ * Name, no hex. This is a view she scans and the swatch already carries the colour, so the hex
+ * does not earn its width here; the sheet holds the values. The name does earn it: a hex is not
+ * something she can repeat to anyone.
  */
 function SwatchCell({ label, color }: { label: string; color: string }) {
   const name = nameShadeTitle(color);
@@ -102,10 +96,8 @@ export default function LooksScreen({
 
       <ColouringSummary colors={colors} profile={profile} />
 
-      {/* A grid, not a column, once there is room. Five looks exist to be compared and a phone can
-          only ever show one at a time; on a laptop that became five screens of scrolling with no
-          two ever side by side. `items-start` so a card with no eyeshadow swatch keeps its own
-          height instead of being stretched to match its row. */}
+      {/* A grid once there is room: five looks exist to be compared, and a column showed one at a
+          time. `items-start` so a card with no eyeshadow keeps its own height. */}
       <div className="grid grid-cols-1 items-start gap-10 md:grid-cols-2 md:gap-8 lg:grid-cols-3">
         {looks.map((rendered) => (
           <button
@@ -130,14 +122,10 @@ export default function LooksScreen({
                     hiding its reasoning would leave five arbitrary thumbnails. */}
                 <p className="font-body mt-1 text-sm leading-relaxed text-muted">{rendered.look.why}</p>
               </div>
-              {/* Three, not eight. Most of the palette is deliberately near-invisible — the brow
-                  follows her hair, contour sits a shade under her skin — and showing all of it
-                  would bury the shades she might actually go and buy. The rest is on the look's
-                  own screen, where she is considering one look rather than scanning five. */}
-              {/* Columns, not rows. Stacked, the three shades cost about 130px of a card that is
-                  already tall from a 3:4 render; side by side the swatches share one line and it
-                  is about 75px. Equal columns rather than auto so the three cells line up across
-                  every card in the grid, whether or not a look wears eyeshadow. */}
+              {/* Three, not eight: most of the palette is deliberately near-invisible, and showing
+                  all of it would bury the shades she might go and buy. Columns rather than rows
+                  saves ~55px on a card already tall from a 3:4 render; equal widths so the cells
+                  line up across every card whether or not a look wears eyeshadow. */}
               <div className="grid grid-cols-3 gap-x-3">
                 <SwatchCell label="Lip" color={rendered.look.lipColor} />
                 <SwatchCell label="Blush" color={rendered.look.blushColor} />
@@ -169,9 +157,7 @@ export default function LooksScreen({
         />
       )}
 
-      {/* After the placement proof, because that section argues the engine is right and this one
-          is her acting on it. Foundation is also the one thing here she cannot see on the looks,
-          since it is deliberately never rendered onto them. */}
+      {/* After the proof: that section argues the engine is right, this is her acting on it. */}
       <FoundationMatch
         skinHex={colors.skin_color}
         guide={foundationGuide(profile, colors.skin_color)}
@@ -200,14 +186,12 @@ export default function LooksScreen({
 }
 
 /**
- * No back arrow. This is the destination of a linear flow, so a top-left arrow would be an
- * ambiguous, reflexively-tapped control whose only real meaning is "throw away a result that
- * cost 35 API units". The escape hatch lives below the looks instead, named for what it does.
+ * No back arrow: this is the destination of a linear flow, so its only real meaning would be
+ * "throw away a result that cost 35 API units". The escape hatch sits below the looks, named for
+ * what it does.
  *
- * This is the one screen that widens. The steps before it ask for a single thing at a time and a
- * wide column would only put more distance between the question and its answer, but this screen
- * is five renders meant to be compared, and comparison is exactly what a phone column cannot do.
- * On a laptop the looks were five screens of scrolling with no two ever visible together.
+ * The one screen that widens. The steps before it ask one thing at a time; this one is five
+ * renders meant to be compared.
  */
 function Shell({ children }: { children: ReactNode }) {
   return (

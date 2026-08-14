@@ -97,9 +97,8 @@ export default function OutfitScreen({
             }}
           />
 
-          {/* Same reasoning as the intro screen's sample faces: the demonstration sits under the
-              real thing rather than beside it. Here it earns its place twice over, because an
-              outfit photo is the one input a judge is least likely to have to hand. */}
+          {/* As on the intro screen: the demonstration sits under the real thing. An outfit photo
+              is the input a judge is least likely to have to hand. */}
           <div className="mt-4">
             <p className="font-label mb-3 text-center text-xs uppercase tracking-widest text-muted">
               Or pick one of these

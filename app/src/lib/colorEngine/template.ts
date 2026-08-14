@@ -718,16 +718,9 @@ function spell(n: number): string {
 /**
  * The "why" line under each look, for a whole set at once.
  *
- * Computed for the set rather than per look because the property that matters, that no two cards
- * say the same thing, is not one a single card can check. The previous version derived the reason
- * from the person and the outfit, both of which are constant across the five, so every card
- * carried the same sentence: five looks each explaining themselves identically explain nothing,
- * and on a phone that reads as house style while in a desktop grid it reads as a template with a
- * variable in it.
- *
- * Each look proposes reasons in descending order of how much it says, and takes the best one
- * nobody above it has taken. Ordering matters more than the pool: the strongest reasons are the
- * ones true of this look and not the others.
+ * Computed for the set because "no two cards say the same thing" is not a property one card can
+ * check. Each look proposes reasons in descending order of how much it says and takes the best
+ * one nobody above it has taken; the strongest are the ones true of this look and not the others.
  */
 function explainAll(
   specs: LookTemplate[],
@@ -736,10 +729,8 @@ function explainAll(
 ): string[] {
   const total = specs.length;
 
-  // The outfit's influence is deliberately subtle in the colours, so it is stated plainly here
-  // instead. A visible reason reads as judgement; a big colour shift would just read as a filter.
-  // It belongs to one look, not all of them: it is a fact about the outfit, and stamping it on
-  // every card was most of what made them identical.
+  // The outfit's influence is deliberately subtle in the colours, so it is stated plainly here.
+  // It belongs to one look: stamping a fact about the outfit on all five made them identical.
   const outfitReason = !garment
     ? null
     : garment.neutral
@@ -748,8 +739,7 @@ function explainAll(
         ? "stepped back, so your outfit leads"
         : "the eye picks up your outfit";
 
-  // Whichever look sits closest to what her colouring carries. It gets the outfit line, since
-  // that is the look the outfit most shaped, and it is the natural home for "about right for you".
+  // Closest to what her colouring carries: the look the outfit most shaped.
   const wanted = preferredIntensity(profile) + (garment ? intensityShift(garment) : 0);
   const centre = specs.reduce(
     (best, spec, i) => (Math.abs(spec.intensity - wanted) < Math.abs(specs[best].intensity - wanted) ? i : best),
@@ -773,16 +763,14 @@ function explainAll(
       i === centre ? "about as much as your colouring carries" : "",
       outfitReason ?? "",
       personal,
-      // Last resort, and the only one guaranteed to differ: no two templates in a set share both
-      // a finish and a register, because selection seeds one look per register.
+      // Last resort, and the only one guaranteed to differ: selection seeds one per register.
       `a ${spec.lip.texture} lip, kept ${spec.register}`,
     ];
 
     const fit = candidates.find((c) => c && !used.has(c)) ?? candidates[candidates.length - 1];
     used.add(fit);
 
-    // Two sentences rather than one joined by a dash. The note describes the look and the fit says
-    // why it was picked for her; they are separate claims and read better as separate sentences.
+    // Two sentences: what the look is going for, then why it was picked for her.
     const note = `${spec.note[0].toUpperCase()}${spec.note.slice(1)}`;
     return `${note}. ${fit[0].toUpperCase()}${fit.slice(1)}.`;
   });
