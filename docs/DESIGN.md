@@ -59,8 +59,8 @@ Base body size 16px minimum, line-height 1.5.
 
 ## Motion
 
-- 150–300ms, ease-out. Motion should convey spatial continuity between the three-looks grid and the
-  live preview, not decorate.
+- 150–300ms, ease-out. Motion should convey spatial continuity between a look card and the sheet
+  it opens, not decorate.
 - Respect `prefers-reduced-motion`.
 - The analysing state is the one place extended motion is justified — see below.
 
@@ -86,22 +86,38 @@ This is the product's credibility moment: real measured colour, shown as it arri
 neutral ground. It is the single best argument that this is not another filter guessing. Design it
 as a reveal, not a spinner. Do not fabricate progress steps — the real ones are enough.
 
-### Three looks
-Three rendered images of the user's own face, labelled **by mood only — "Soft", "Polished",
-"Bold"** — never by template or technical name. The personalisation should feel discovered, not
-picked from a menu. Tapping one goes straight to live preview; nothing should compete with that tap.
+### Outfit — optional
+Sits between analysing and the looks. Skipping is a first-class path and must look like one, not
+like a failure to complete a step.
+
+### Looks
+Five rendered images of the user's own face, labelled **by mood only** — never by template or
+technical name. Personalisation should feel discovered, not picked from a menu. Tapping a card
+opens its full shade list.
+
+Each card carries a shade's **name** beside its swatch, not its hex. A hex is a measurement she
+cannot repeat at a counter; the values live in the sheet, where she is considering one look rather
+than scanning five.
+
+**The only screen that widens past the phone column.** Every other screen asks one thing at a time
+and a wide column would only separate the question from its answer. This one is five renders meant
+to be compared, which a single column cannot do. Two columns at 48rem, three at 64rem.
 
 Rendered image URLs are pre-signed and expire in 2 hours — no "save your looks" affordance that
 implies permanence.
 
-### Live preview
-The emotional peak. **Renders lip colour and blush only** — not eyeshadow, liner, lashes or brows,
-which exist only in the static render. Do not mock up live preview with dramatic eye makeup; it
-cannot be built.
+### The two exhibits below the looks
+Both sit *after* the payoff, never before it. They are evidence, and evidence reads better after
+the thing it is evidence for.
 
-The step down in fidelity from the full static render is real and should be handled deliberately —
-e.g. keeping the static render present alongside the live view as reference — rather than letting
-the full look appear to vanish.
+**Placement proof** shows one shade placed the conventional way against the same shade placed for
+her depth, named as well as valued, with the rendered pair on request. **Foundation match** is a
+drag-to-compare wipe rather than a side-by-side, because a correct foundation is invisible and two
+near-identical images side by side read as a rendering fault.
+
+### Live preview — cut
+Built, measured at ~113ms a frame on a mid-range phone, and removed. Nothing in the design should
+assume a live view exists. The component is still in the repo, unrouted.
 
 ## Non-negotiables (from the skill's pre-delivery checklist)
 

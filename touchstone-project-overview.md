@@ -1,5 +1,11 @@
 # Touchstone — Project Overview
 
+> **Superseded.** This is the plan as written before the build, kept as a record of what was
+> intended and where it was wrong. Several of its central assumptions did not survive: the live
+> preview was built and cut, three looks became five, and a task was assumed to cost far fewer
+> units than it does. For what actually shipped, see [docs/flow-spec.md](docs/flow-spec.md).
+
+
 ## One-line pitch
 A mirror that already knows what works on you: snap a selfie, get 3 makeup looks personalized to your actual skin/eye/hair color, tap one, see it live on your face.
 

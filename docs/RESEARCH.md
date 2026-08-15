@@ -1,6 +1,6 @@
 # Research notes
 
-Why Undertone is built the way it is. Recorded on 2026-08-12, during the build.
+Why Touchstone is built the way it is. Recorded on 2026-08-12, during the build.
 
 Everything here is labelled by how much weight it can carry. That matters more than the findings
 themselves: two of the decisions below rest on a single interview, and one rests on a leading
@@ -121,6 +121,19 @@ That is exactly the two bugs already fixed in the colour engine:
 We solved a named industry failure without knowing it had a name. It should be shown, not
 claimed — the engine lab renders every template across Fitzpatrick I–VI at zero API cost.
 
+### Added after this was written: distance is not visibility
+
+The guard above turned out to be a backstop, not the mechanism. Pushing a shade far enough from
+measured skin does not make it a colour: on the deepest fixture the conventional placement scores
+dE 0.247 from her skin and the adapted one scores 0.205, so a pure distance test passes the black
+and ranks it *higher*. Black is a long way from skin and still not a lipstick.
+
+What actually does the work is where the colour is placed. Makeup colour is conventionally put
+below the skin's own lightness, which is a fair-skin assumption: there is room below fair skin and
+almost none below deep skin, and what room exists is where sRGB cannot hold a saturated colour at
+all. A shade has to clear a distance **and** survive as a colour. That is the product's central
+claim, and it postdates this section by several days.
+
 ---
 
 ## 4. Outfit ↔ makeup coordination (trade convention, consistent across sources)
@@ -171,6 +184,14 @@ Demo legibility comes from explaining the influence on each card, not from ampli
 | Palette (multi-swatch) rather than one garment colour | Real outfits are multi-garment; confirmed by the cut-out test image | High |
 | Don't add foundation as a *rendered* effect | Invisible when right; reads as skin-lightening when wrong | High |
 | Takeaway palette card demoted | Her Q7 suggests she wouldn't value it | Low — was ranked higher before the interview |
+
+**One of these was later reversed, narrowly.** "Don't add foundation as a rendered effect" still
+holds for the looks: foundation is never rendered onto them, for exactly the reasons given. But
+foundation is now rendered in one place, as an opt-in before/after comparison of three shades
+around her measurement. The reasoning that produced the original decision is what makes the
+exception safe: a correct foundation being invisible is why the comparison is a drag-to-wipe rather
+than a side-by-side, and the skin-lightening risk is why the lighter shade is labelled by what
+going wrong looks like instead of being offered as an option.
 
 ---
 

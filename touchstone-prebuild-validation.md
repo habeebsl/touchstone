@@ -1,5 +1,11 @@
 # Touchstone — Pre-Build Validation Plan
 
+> **Superseded.** This is the plan as written before the build, kept as a record of what was
+> intended and where it was wrong. Several of its central assumptions did not survive: the live
+> preview was built and cut, three looks became five, and a task was assumed to cost far fewer
+> units than it does. For what actually shipped, see [docs/flow-spec.md](docs/flow-spec.md).
+
+
 Purpose: derisk every unproven assumption before writing the full app. Each item below is a small, isolated spike with a clear pass/fail condition. Do not start the "real" build until the items marked **Blocking** have a result — a failure on any of them changes the architecture, not just a detail, so finding out early is the entire point of this doc.
 
 Run these in priority order. Time-box each one; if you blow through the estimate without a clear answer, stop and reassess rather than sinking the whole day into one spike.

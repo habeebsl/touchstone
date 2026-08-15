@@ -297,3 +297,41 @@ vestigial — in a real test it never fired even 8 seconds after the script load
 `window.YMK.init()` directly, whenever a human clicks it, which is always well after `window.YMK`
 becomes available on its own. `app/src/lib/cameraKit/loadCameraKit.ts` now gates readiness on
 polling for `window.YMK` to exist after `script.onload`, not on the `YMKAsyncInit` callback.
+
+---
+
+## Foundation effect — TYPED, NEVER CALLED
+
+`FoundationEffect` is in `types.ts` and used by the foundation comparison, but no request carrying
+it has ever been sent. The shape is read off the docs, not confirmed:
+
+```json
+{ "category": "foundation",
+  "palettes": [{ "color": "#8a5a3b", "colorIntensity": 100, "glowIntensity": 0, "coverageIntensity": 100 }] }
+```
+
+**`skin_smooth` must be pinned to 0 alongside it.** The API applies it at strength 50 when omitted,
+so a foundation render comes back airbrushed as well as tinted, and a before/after comparison would
+be demonstrating a beauty filter while claiming to demonstrate shade matching.
+
+---
+
+## Deploying the proxy on Vercel — CONFIRMED 2026-08-14
+
+A catch-all route at `api/youcam/[...path].ts` compiled and deployed but was **never routed**:
+`/api/youcam/*` returned Vercel's own NOT_FOUND while a bare `api/ping.ts` answered normally, which
+isolated the fault to the bracket filename rather than to project settings.
+
+Declaring it in `vercel.json` cannot rescue this. `functions` keys are globs, so `[...path]` there
+reads as a character class meaning "one character from `.path`", not as a literal filename.
+
+The working shape is a plain function plus a rewrite:
+
+```json
+{ "rewrites": [{ "source": "/api/youcam/:path*", "destination": "/api/youcam?path=:path*" }],
+  "functions": { "api/youcam.ts": { "maxDuration": 30 } } }
+```
+
+Two further notes: Vercel typechecks `api/` in a pass of its own, which ignores `tsconfig.app.json`
+and runs on compiler defaults with no node types, so `process` must be declared locally. And the
+app's own `tsc -b` never covers `api/`, so nothing here is caught before a deploy.
