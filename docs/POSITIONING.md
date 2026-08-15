@@ -204,8 +204,8 @@ Both senses intended. Alternative, for the rigour angle: *The colour analyst tha
 
 ## 6. Build plan
 
-*Updated 13 Aug. Items 1-4 are done; the API-key decision and the submission materials are what
-is left.*
+*Updated 14 Aug. The code is finished. What is left is not code: one live run, a deploy, and the
+submission materials.*
 
 **1. Shade receipts — done, and it changed the argument.** ~~The guard made visible.~~ Building it
 showed the guard is a backstop that mostly fires on fair skin, and that the depth *placement* is
@@ -218,12 +218,29 @@ what carries deep colouring. `pickColour` and `enforceDistance` now keep their w
 **3. Live preview cut — done.** Removed from the flow; a look card opens its shades instead. The
 component stays unrouted with a note on why it went.
 
-**4. Checks packaged — done.** `npm run checks` runs all six offline suites in one command. No
+**4. Checks packaged — done.** `npm run checks` runs all seven offline suites in one command. No
 network, no API units, so it can run on every change.
 
-**5. The API key in the bundle.** Still unresolved and on the critical path for any public deploy.
+**5. The API key in the bundle — done.** The browser no longer holds a credential at all. The
+client calls `/api/youcam/...`, a Vercel function attaches the header from `YOUCAM_API_KEY`, and a
+Vite plugin does the same in dev. Camera Kit turned out to need no key either, confirmed live.
 
-**6. Video and write-up.** Two full days. The pitch changed after §1, so none of this is drafted.
+**6. Actionability — done.** A hex is a measurement nobody can repeat at a counter, so every shade
+now carries a name, and foundation, which was the one output that was words alone, gained three
+shades around her measurement and a drag-to-compare wipe against her bare photo.
+
+**7. Runs without a camera — done.** Three generated faces spanning Fitzpatrick II, IV and VI, and
+three garments chosen by measured chroma to hit a different influence branch each. Anyone on a
+desktop can reach the payoff, and the range is what the placement argument needs.
+
+**8. Renamed.** Five other entries were called Undertone, which is the category's generic word
+rather than a name.
+
+**9. One live run.** The foundation effect is typed but has never been called; nor has the proxy
+handled a real upload. One run on one face settles both, for about 35 units.
+
+**10. Video and write-up.** Not drafted. The pitch changed after §1, and this is now the largest
+piece of unfinished work in the project.
 
 ---
 
@@ -231,7 +248,8 @@ network, no API units, so it can run on every change.
 
 - **Novelty is our weakest criterion and no amount of building fixes it.** The mitigation is
   framing, not features.
-- **The S2S API key is embedded in the built bundle.** Must be decided before any public deploy.
+- ~~**The S2S API key is embedded in the built bundle.**~~ Closed: the browser holds no credential
+  and the key lives only on the server. Audited at zero occurrences in `dist`.
 - **The seasonal naming is a convention layered over measurements.** If a judge reads it as
   astrology, the rigour argument dies with it. Keep it subordinate to the measured findings.
 - **One interview is one interview.** RESEARCH.md is explicit that Aliyah is an outlier on the
