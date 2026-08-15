@@ -55,6 +55,10 @@ cp .env.example .env.local     # add YOUCAM_API_KEY
 npm run dev
 ```
 
+No camera needed to try it: the intro screen offers three generated faces spanning Fitzpatrick II,
+IV and VI, and the outfit step offers three garments. They go through the same upload, analysis and
+render path a real photo does, so they cost the same units and prove the same things.
+
 One credential, and it never reaches the browser. `YOUCAM_API_KEY` is deliberately not prefixed
 with `VITE_`: anything Vite sees as `VITE_*` is inlined into the built JavaScript. The client calls
 `/api/youcam/...` with no credentials at all. A Vercel function attaches the header in production,
@@ -65,7 +69,7 @@ not validate one client-side.
 | --- | --- |
 | `npm run dev` | Dev server, with the API proxy |
 | `npm run build` | Typecheck and build |
-| `npm run checks` | All six offline check suites. No network, no API units |
+| `npm run checks` | All seven offline check suites. No network, no API units |
 | `npm run sweep` | Regenerate [docs/SWEEP.md](docs/SWEEP.md) from the engine |
 
 ### Deploying
@@ -77,7 +81,7 @@ Vercel, root directory `app`, with `YOUCAM_API_KEY` set as a server environment 
 
 ## The checks
 
-Six suites, all offline and all free, which matters when a full analysis costs 33 API units.
+Seven suites, all offline and all free, which matters when a full analysis costs 33 API units.
 Several are named after the failure that prompted them.
 
 | Suite | Asserts |
@@ -87,6 +91,7 @@ Several are named after the failure that prompted them.
 | `blend.check.ts` | A shade is visible on what it sits on, keeps its texture, and lands on the right hue at every luminance |
 | `garment.check.ts` | Garment palette extraction against a real API cutout |
 | `patterns.check.ts` | Every pattern label exists in the live catalogues. An invalid one fails a render with no useful message |
+| `shadeName.check.ts` | Shades sharing a name really are the same shade, and the pair the placement proof shows side by side never is |
 | `oklch.check.ts` | The colour maths itself |
 
 The three files alongside them (`vtoProbe`, `browProbe`, `realCutout`) call the live API and cost
@@ -115,13 +120,15 @@ A full run costs 33 units, of which 30 are spent before a single look is rendere
 intro       Camera Kit capture
 analysing   skin-tone-analysis + fitzpatrick-scale-analyzer -> ColourProfile
 outfit      optional garment photo -> sod -> palette extraction -> look selection
-looks       five looks rendered by makeup-vto, with the placement proof and every shade
+looks       five looks rendered by makeup-vto, then the placement proof and the foundation match
 ```
 
 - `lib/colorEngine/palette.ts` builds one colour for one role, in OKLCh, placed relative to
   measured skin lightness. This is where the depth adaptation lives.
 - `lib/colorEngine/template.ts` holds eleven look structures; five are chosen per person and filled
   with their colours.
+- `lib/colorEngine/shadeName.ts` turns a measured colour into words, so a swatch reads "vivid
+  brick" rather than a hex nobody can repeat at a counter.
 - `lib/garment/` covers palette extraction from a garment photo, and how it influences selection.
 - `docs/` holds [POSITIONING.md](docs/POSITIONING.md) (what this can and cannot claim, and why),
   [RESEARCH.md](docs/RESEARCH.md) (user and market evidence), and the API notes.
@@ -132,4 +139,6 @@ A live AR preview was built and then cut. On a mid-range phone MediaPipe's face 
 ~113ms a frame, holding it at 6fps, and even rendering correctly it read as a filter rather than
 as makeup. Perfect Corp's own app does live AR makeup well, so shipping a worse version of it
 argued against the project. The component remains in the repo, unrouted, with the compositing work
-intact. See `components/LivePreview.tsx`.
+intact. See `components/LivePreview.tsx`. Its 38MB of wasm and model assets no longer ship: the
+Vite plugin that served them is dev-only, which is most of why the build is 3.8MB rather than
+42MB.
