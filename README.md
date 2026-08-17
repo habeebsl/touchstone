@@ -10,9 +10,9 @@ render the result; the engine in between decides what to put on it.
 | | |
 | --- | --- |
 | **Live** | https://touchstone-lime.vercel.app |
-| **Flow and screens** | [Spec](https://claude.ai/code/artifact/88c56f33-102a-4e79-ad2d-d24d387a8976) |
-| **What we claim, and what we don't** | [Positioning](https://claude.ai/code/artifact/8177a4bb-31cc-438b-8cdb-93080cd5ee9a) |
-| **Evidence behind it** | [Research](https://claude.ai/code/artifact/3d7eaf96-5ade-4c12-b26e-6c801e1831a4) |
+| **Flow and screens** | [docs/flow-spec.md](docs/flow-spec.md) |
+| **What we claim, and what we don't** | [docs/CLAIMS.md](docs/CLAIMS.md) |
+| **Evidence behind it** | [docs/RESEARCH.md](docs/RESEARCH.md) |
 
 **No camera required.** The first screen offers three faces spanning Fitzpatrick II, IV and VI,
 and the outfit step offers three garments. They run the same upload, analysis and render path a
