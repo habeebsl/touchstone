@@ -152,16 +152,3 @@ not validate one client-side.
 Vercel, root directory `app`, with `YOUCAM_API_KEY` set as a server environment variable.
 `api/youcam.ts` serves it, with `vercel.json` rewriting `/api/youcam/:path*` onto it.
 
----
-
----
-
-## Not in it
-
-A live AR preview was built and then cut. On a mid-range phone MediaPipe's face landmarking cost
-~113ms a frame, holding it at 6fps, and even rendering correctly it read as a filter rather than
-as makeup. Perfect Corp's own app does live AR makeup well, so shipping a worse version of it
-argued against the project. The component remains in the repo, unrouted, with the compositing work
-intact. See `components/LivePreview.tsx`. Its 38MB of wasm and model assets no longer ship: the
-Vite plugin that served them is dev-only, which is most of why the build is 3.8MB rather than
-42MB.
