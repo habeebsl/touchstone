@@ -122,8 +122,9 @@ The rest:
 - `lib/colorEngine/shadeName.ts` turns a measured colour into words, so a swatch reads "vivid
   brick" rather than a hex nobody can repeat at a counter.
 - `lib/garment/` covers palette extraction from a garment photo, and how it influences selection.
-- `docs/` holds [POSITIONING.md](docs/POSITIONING.md) (what this can and cannot claim, and why),
-  [RESEARCH.md](docs/RESEARCH.md) (user and market evidence), and the API notes.
+- `docs/` holds [CLAIMS.md](docs/CLAIMS.md) (what this claims and what it doesn't),
+  [RESEARCH.md](docs/RESEARCH.md) (the user and market evidence behind it), [SWEEP.md](docs/SWEEP.md)
+  (the placement table, generated), and the API notes.
 
 ## Running it yourself
 
