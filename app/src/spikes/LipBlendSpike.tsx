@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 
-// Prebuild-validation spike #1: does client-side blend-mode compositing look like real
-// lipstick, not a flat color overlay? See /touchstone-prebuild-validation.md item 1.
+// Validation spike: does client-side blend-mode compositing look like real lipstick,
+// not a flat color overlay?
 //
 // Outer lip contour, MediaPipe 468-point face mesh topology (same indices as FaceMesh).
 // Closed loop tracing the outer boundary of both lips + mouth corners.
@@ -202,7 +202,7 @@ export default function LipBlendSpike() {
       </div>
 
       <p style={{ opacity: 0.6, fontSize: 12, marginTop: 16, maxWidth: 640 }}>
-        Pass condition (prebuild-validation.md item 1): looks like lipstick, not paint — natural
+        Pass condition: looks like lipstick, not paint. Natural
         lip shading/highlights visible through the color, no hard-cut edges, holds up as you move
         and talk. Try multiply vs soft-light and tune feather/intensity to judge.
       </p>

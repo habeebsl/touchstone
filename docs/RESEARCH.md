@@ -36,10 +36,12 @@ axis the engine reasons about. She also changed precisely the two regions the en
 system controls. The staining detail independently confirms the sequence: outfit chosen → makeup
 applied → dress on last.
 
-**She rejects the framing the app was built on.** "There's no colour that wouldn't suit me" is not
-"I don't know which colours suit me" — she doesn't accept the category. And when asked how she
-picks a shade she answered about foundation *matching*, a solved problem, not about colour
-harmony. A product that opens with "here's your season, here's what to avoid" would land badly.
+**She rejected the framing the app was originally built on, and it changed the product.** "There's
+no colour that wouldn't suit me" is not "I don't know which colours suit me" — she doesn't accept
+the category. And when asked how she picks a shade she answered about foundation *matching*, not
+about colour harmony. So the product stopped opening with "here's your season, here's what to
+avoid" and became outfit-led, with the seasonal reading kept subordinate to the measurements. One
+interview is thin evidence, but it caught a framing error early enough to be cheap to fix.
 
 **She's an outlier on the pain**, and her own answer says why: three products, bought rarely, so
 no history of expensive mistakes. §2 shows the wider picture is very different.
@@ -209,8 +211,9 @@ Things we are acting on without evidence, listed so they are not mistaken for se
 
 **What would change our minds:** two or three more interviews, especially with someone who wears
 makeup daily. Question 5 ("can you think of a time what you were wearing changed your makeup?") is
-the one that matters — if nobody can produce a specific instance, the apparel work is weaker than
-this document assumes.
+the one that matters, and it is the question the apparel work rests on. One person produced a
+specific, unprompted instance; the trade sources in §4 say the same thing independently. More
+interviews would raise the confidence, and are the first thing to do next.
 
 ---
 

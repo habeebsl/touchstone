@@ -1,6 +1,6 @@
 # YouCam / Perfect Corp API — Research Notes
 
-> **Update 2026-08-10:** Spikes #2 and #3 from the prebuild-validation plan have been run live
+> **Update 2026-08-10:** The analysis and render endpoints have been exercised live
 > against the real API. All three endpoints below are now confirmed working end-to-end. Corrections
 > to the docs-derived info are marked ✅ CONFIRMED inline. See "Confirmed findings" section at the
 > bottom for the short version.
@@ -73,9 +73,8 @@ explicit target-face selection — skip for single-face selfies.
 
 Returns one of six Fitzpatrick types (I–VI, White → Very Dark Brown scale). **The docs page does
 not show a sample JSON response for the final result** (only prose: "returns one of six
-standardized skin types") — the exact response field name is unconfirmed. This is squarely what
-prebuild-validation spike #3 is for: call it for real and log the raw response before building
-against it.
+standardized skin types"), so the exact response field name had to be confirmed by calling it for
+real and logging the raw response. See "Confirmed findings" below.
 
 Image constraints: long side ≤ 4096px, short side ≥ 320px, jpg/jpeg only, < 10MB.
 

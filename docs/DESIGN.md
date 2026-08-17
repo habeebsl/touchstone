@@ -1,7 +1,7 @@
 # Touchstone — Design System
 
 Source inputs: the beauty/editorial entries from the `ui-ux-pro-max` skill database, the measured
-constraints in [flow-spec.md](./flow-spec.md), and the product thesis in the overview doc.
+constraints in [flow-spec.md](./flow-spec.md), and the product thesis in [CLAIMS.md](./CLAIMS.md).
 
 ## The one rule everything else serves
 
@@ -114,10 +114,6 @@ the thing it is evidence for.
 her depth, named as well as valued, with the rendered pair on request. **Foundation match** is a
 drag-to-compare wipe rather than a side-by-side, because a correct foundation is invisible and two
 near-identical images side by side read as a rendering fault.
-
-### Live preview — cut
-Built, measured at ~113ms a frame on a mid-range phone, and removed. Nothing in the design should
-assume a live view exists. The component is still in the repo, unrouted.
 
 ## Non-negotiables (from the skill's pre-delivery checklist)
 

@@ -2,9 +2,7 @@
 
 What the product actually is, screen by screen, with the constraint each screen has to respect.
 
-This describes what shipped. An earlier version of this document specified a three-look flow with
-a live AR preview as its final state and no outfit step; none of that survived contact with the
-build. Where a number appears it was measured or read off the API console, not estimated.
+Where a number appears it was measured or read off the API console, not estimated.
 
 ---
 
@@ -124,18 +122,6 @@ on "vivid raspberry". Rendering both on her face costs one unit and is offered, 
 depth, compared against her bare photo with a drag-to-wipe. Three rather than one because the
 measurement will not carry one: `skin_color` is an average off a photo of the face, foundation is
 matched at the jaw, and her camera is uncalibrated.
-
----
-
-## Cut: the live preview
-
-A real-time AR layer was built and removed. On a mid-range phone MediaPipe's face landmarking cost
-~113ms a frame, holding it at 6fps, and even rendering correctly it read as a filter rather than
-as makeup. Perfect Corp's own app does live AR makeup well, so shipping a worse version argued
-against the project rather than for it.
-
-The component remains in the repo, unrouted, with the compositing work intact. Its 38MB of wasm
-and model assets no longer ship.
 
 ---
 
