@@ -32,6 +32,7 @@ look and the same visibility guards; the only difference is that one placement r
 
 | Colouring | Fitz | Placed the usual way | Placed for depth | ΔE moved |
 | --- | --- | --- | --- | --- |
+| Live API sample | I | `#ce3c3d` (chroma 0.183) | `#ce3c3d` (chroma 0.183) | 0.000 |
 | Very fair, cool | I | `#f83698` (chroma 0.238) | `#f83698` (chroma 0.238) | 0.000 |
 | Light, cool | II | `#e31e85` (chroma 0.234) | `#e31e85` (chroma 0.234) | 0.000 |
 | Medium, warm | IV | `#80341e` (chroma 0.111) | `#80341e` (chroma 0.111) | 0.000 |
@@ -39,7 +40,7 @@ look and the same visibility guards; the only difference is that one placement r
 | Deep, warm | V | `#461a0c` (chroma 0.072) | `#5d1801` (chroma 0.105) | 0.052 |
 | Deepest | VI | `#050403` (chroma 0.005) | `#a7075d` (chroma 0.191) | 0.414 |
 
-**The rule does nothing until it is needed.** It is identical across the five lighter fixtures.
+**The rule does nothing until it is needed.** It is identical across the five lighter profiles.
 Not a special case bolted on for deep skin, then, but a rule that only binds where there is no
 room below.
 
