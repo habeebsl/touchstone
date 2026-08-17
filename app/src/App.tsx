@@ -15,7 +15,7 @@ const SPIKES = {
 type SpikeKey = keyof typeof SPIKES;
 
 /**
- * The real app is the default. The prebuild-validation spikes stay reachable behind ?spike=
+ * The real app is the default. The validation spikes stay reachable behind ?spike=
  * so they can still be run in isolation, but they never render in the normal flow — mounting
  * two things that both grab the webcam or the Camera Kit singleton would conflict.
  */

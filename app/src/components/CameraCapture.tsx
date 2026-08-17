@@ -6,7 +6,7 @@ interface CameraCaptureProps {
 }
 
 /**
- * Self-contained capture control used by the prebuild-validation spikes. The real app drives the
+ * Self-contained capture control used by the validation spikes. The real app drives the
  * same `useCameraKit` hook directly, because there the "open camera" action belongs to the intro
  * screen's own button rather than to a component that owns both button and mount point.
  */
